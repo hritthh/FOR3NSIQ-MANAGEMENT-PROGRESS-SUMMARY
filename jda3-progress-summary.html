@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JDA3 Progress Summary</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<!--
+  ============================================================================
+  JDA3 PROGRAMME — PROGRESS SUMMARY  (All Projects only · read-only)
+  A short management view of the full progress report (jda3-progress-report.html).
+   - No uploads here. The page opens the report last SAVED to the database from
+     the full report ("Save to database"), so both pages show the same data.
+   - Planned / actual % and the S-curve use the same calculation as the full
+     report's All Projects page (copied unchanged — see CALCULATION below).
+  ============================================================================
+-->
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<!-- Date adapter for the Chart.js time axis (bundle includes date-fns) -->
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<!-- Zoom / pan for the S-curve (same as the full report) -->
+<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+
+<style>
+/* ===================== JDA3 DESIGN TOKENS (same as the full report) ===================== */
+:root{
+  --teal-900:#013d39; --teal-800:#015149; --teal-700:#0a6e66; --teal-600:#00857c;
+  --teal-500:#00a19c; --teal-400:#35c4bc; --teal-100:#cdeae8; --teal-050:#e7f4f3;
+  --text:#16242a; --muted:#5d6f74; --border:#e2e8ea;
+  --green:#1f9d6b; --amber:#c68a3f; --red:#b3453a;
+  --glass-bg:linear-gradient(165deg,rgba(255,255,255,.96),rgba(231,244,243,.62));
+  --glass-brd:rgba(0,133,124,.17);
+  --elev-1:inset 0 1px 0 rgba(255,255,255,.92),0 2px 8px rgba(2,62,58,.06),0 10px 28px rgba(2,62,58,.08);
+  --elev-2:inset 0 1px 0 rgba(255,255,255,.92),0 8px 22px rgba(2,62,58,.12),0 24px 56px rgba(2,62,58,.16);
+  --font:"Segoe UI",-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif;
+  --mono:'IBM Plex Mono',Consolas,'Courier New',monospace;
+  --chart-grid:#dde6e5; --chart-plan:#8a9a97;
+  --kpi-ink:var(--teal-900); --emph:var(--teal-700);
+  --bg:#eef4f4; --panel:#ffffff;
+}
+[data-theme="dark"]{
+  --bg:#0a1716; --panel:#10211f;
+  --text:#e4efee; --muted:#9db3b1; --border:#21403c;
+  --teal-050:#0f2b28; --teal-100:#1d4a45;
+  --glass-bg:linear-gradient(165deg,rgba(20,42,40,.94),rgba(12,30,28,.80));
+  --glass-brd:rgba(53,196,188,.16);
+  --elev-1:0 2px 8px rgba(0,0,0,.28),0 10px 28px rgba(0,0,0,.22);
+  --elev-2:0 8px 22px rgba(0,0,0,.34),0 24px 56px rgba(0,0,0,.3);
+  --chart-grid:#21403c; --chart-plan:#7f9592;
+  --kpi-ink:#e4efee; --emph:var(--teal-400);
+}
+*{box-sizing:border-box}
+[hidden]{display:none !important}
+html,body{margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:var(--font);font-size:15.5px;line-height:1.6;color:var(--text);
+  background:
+    radial-gradient(1100px 540px at 85% -8%,rgba(0,161,156,.14),transparent 60%),
+    radial-gradient(950px 640px at -12% 34%,rgba(10,110,102,.10),transparent 55%),
+    radial-gradient(1000px 720px at 72% 108%,rgba(0,133,124,.09),transparent 60%),
+    var(--bg);
+  background-attachment:fixed;transition:background .3s ease,color .3s ease}
+[data-theme="dark"] body{background:
+    radial-gradient(1100px 540px at 85% -8%,rgba(0,161,156,.10),transparent 60%),
+    radial-gradient(950px 640px at -12% 34%,rgba(10,110,102,.10),transparent 55%),
+    var(--bg);background-attachment:fixed}
+h1,h2,h3{margin:0}
+button{font-family:inherit;cursor:pointer}
+
+/* aurora: fixed, non-interactive background blobs */
+.aurora{position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:0}
+.aurora .blob{position:absolute;border-radius:50%;filter:blur(72px);opacity:.35;mix-blend-mode:multiply}
+[data-theme="dark"] .aurora .blob{mix-blend-mode:screen;opacity:.12}
+.aurora .b1{width:560px;height:560px;background:radial-gradient(circle at 32% 32%,#2fd6cb,transparent 70%);top:-180px;right:-100px}
+.aurora .b2{width:460px;height:460px;background:radial-gradient(circle at 60% 42%,#0a8f86,transparent 70%);bottom:-200px;right:26%}
+.aurora .b3{width:400px;height:400px;background:radial-gradient(circle at 50% 50%,#56e0d5,transparent 70%);top:6%;left:-160px}
+
+/* ============================== HEADER ==================================== */
+header.appbar{position:sticky;top:0;z-index:100;display:flex;align-items:center;gap:18px;padding:12px 24px;color:#fff;
+  background:linear-gradient(180deg,var(--teal-700),var(--teal-600));box-shadow:0 2px 8px rgba(1,40,36,.18)}
+.brand-lockup{display:flex;align-items:center;gap:14px;flex:1;min-width:0}
+.app-logo{height:46px;width:auto;flex:none;background:#fff;padding:3px 5px;border-radius:8px;box-shadow:0 1px 4px rgba(1,40,36,.18)}
+.title-block{min-width:0;display:flex;flex-direction:column-reverse}
+.title-block h1{font-size:17px;font-weight:700;letter-spacing:-.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.title-block .sub{font-size:12.5px;color:#bfe6e2;margin:0 0 1px}
+.head-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.live-pill{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:700;padding:6px 13px;border-radius:999px;
+  background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.2)}
+.dot{width:9px;height:9px;border-radius:50%;background:#f0a24a;box-shadow:0 0 0 3px rgba(240,162,74,.3)}
+.dot.ok{background:#8dffce;box-shadow:0 0 0 3px rgba(141,255,206,.28)}
+.dot.err{background:#ff6b6b;box-shadow:0 0 0 3px rgba(255,107,107,.25)}
+.head-stats{display:flex;align-items:center;gap:20px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.2);
+  border-radius:999px;padding:5px 18px}
+.head-stat{line-height:1.15}
+.head-stat .k{font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;opacity:.8}
+.head-stat .v{font-family:var(--mono);font-size:12.5px;font-weight:600;margin-top:2px}
+.btn{border:0;border-radius:999px;padding:8px 16px;font-size:13px;font-weight:700;display:inline-flex;align-items:center;gap:7px;
+  background:#fff;color:var(--teal-700);box-shadow:0 3px 10px rgba(0,0,0,.16);transition:transform .15s ease,box-shadow .15s ease}
+.btn:hover{transform:translateY(-2px)}
+.btn:active{transform:scale(.96)}
+.btn.ghost{color:#fff;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.2);box-shadow:none}
+
+/* ============================== PAGE ====================================== */
+.page{position:relative;z-index:1;max-width:1240px;margin:0 auto;padding:24px 22px 8px;display:flex;flex-direction:column;gap:26px}
+.sec{display:flex;flex-direction:column;gap:14px;min-width:0}
+.sec-head{display:flex;align-items:center;justify-content:space-between;gap:10px 14px;flex-wrap:wrap}
+.sec-head h2{font-size:19px;font-weight:800;letter-spacing:-.3px;color:var(--text);display:flex;align-items:center;gap:9px}
+.sec-head .bar{width:5px;height:20px;border-radius:3px;background:linear-gradient(180deg,var(--teal-400),var(--teal-700))}
+.pill{display:inline-flex;align-items:center;gap:6px;background:var(--teal-050);border:1px solid var(--teal-100);color:var(--teal-700);
+  font-size:11px;font-weight:700;padding:2px 10px;border-radius:999px;letter-spacing:.02em}
+.pill::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--teal-600)}
+[data-theme="dark"] .pill{color:var(--teal-400)}
+.hint{font-size:11.5px;color:var(--muted);margin:10px 0 0}
+.sec-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.btn.outline{background:transparent;border:1.5px solid var(--teal-500);color:var(--teal-700);box-shadow:none;padding:4px 12px;font-size:12px}
+.btn.outline:hover{background:var(--teal-050)}
+[data-theme="dark"] .btn.outline{color:var(--teal-400)}
+
+/* ---- deep-teal data panel: progress by project ---- */
+.dark{background:radial-gradient(340px circle at 105% -12%,rgba(0,209,197,.22),transparent 70%),linear-gradient(165deg,var(--teal-900),#012724);
+  color:#e6f6f4;border-radius:16px;box-shadow:var(--elev-2);padding:18px 24px 16px}
+.pj-head,.pj-row{display:grid;grid-template-columns:minmax(150px,210px) 1fr 66px 66px 92px 96px;gap:16px;align-items:center}
+.pj-head{padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,.1);font-size:10.5px;font-weight:800;letter-spacing:.06em;
+  text-transform:uppercase;color:#9fd6d1}
+.pj-head span:nth-child(n+3){text-align:right}
+.pj-head span:last-child{text-align:center}
+.pj-row{padding:11px 0;border-bottom:1px solid rgba(255,255,255,.07)}
+.pj-row:last-child{border-bottom:0}
+.pj-row.missing{opacity:.5}
+.pj-name{min-width:0;font-size:12.5px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;color:#fff;line-height:1.35}
+.pj-name small{display:block;font-size:11px;font-weight:600;letter-spacing:0;text-transform:none;color:#9fd6d1;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pj-track{position:relative;height:14px;border-radius:8px;background:rgba(255,255,255,.18)}
+.pj-fill{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:8px;background:var(--teal-400);transition:width 1s cubic-bezier(.65,0,.35,1)}
+.pj-mark{position:absolute;top:-6px;bottom:-6px;width:2px;margin-left:-1px;background:#fff;border-radius:1px;box-shadow:0 0 0 1px rgba(1,39,36,.4)}
+.pj-num{text-align:right;font-family:var(--mono);font-size:14px;font-weight:700;white-space:nowrap}
+.pj-num small{font-size:11px;font-weight:600;opacity:.8}
+.pj-num.a{color:var(--teal-400)}
+.pj-num.p{color:#fff}
+.pj-num.d{color:#f0a24a}
+.pj-num.d.ahead{color:var(--teal-400)}
+.pj-num .k{display:none}
+.pj-st{text-align:center}
+.status-pill{display:inline-block;padding:3px 11px;border-radius:999px;font-size:11.5px;font-weight:700;white-space:nowrap}
+.status-pill.green{background:#dff3ea;color:var(--green)}
+.status-pill.amber{background:#f6ecd9;color:#a06a26}
+.status-pill.red{background:#f6e0de;color:var(--red)}
+.status-pill.none{background:rgba(255,255,255,.12);color:#cfeeea}
+.pj-legend{display:flex;align-items:center;flex-wrap:wrap;gap:6px 18px;margin-top:10px;padding-top:12px;
+  border-top:1px solid rgba(255,255,255,.1);font-size:11px;color:#cfeeea}
+.pj-legend span{display:inline-flex;align-items:center;gap:6px}
+.pj-legend .sw{width:22px;height:8px;border-radius:5px;background:var(--teal-400)}
+.pj-legend .mk{width:2px;height:14px;background:#fff}
+.pj-legend .gap{flex:1}
+.pj-note{margin-top:8px;font-size:11.5px;color:#f0c58f}
+.pj-note b{color:#fff}
+/* programme snapshot (left) beside the project rows (right) — as in the full report */
+.pj-grid{display:grid;grid-template-columns:minmax(260px,300px) 1fr;gap:18px;align-items:stretch}
+.snap{padding:22px 24px}
+.snap-top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
+.snap-label{max-width:150px;font-size:11.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#cfeeea;line-height:1.45}
+.snap-actual{font-size:52px;font-weight:800;line-height:1;color:var(--teal-400);letter-spacing:-1.5px}
+.snap-cap{font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#9fd6d1;margin-top:6px}
+.snap-rule{height:3px;background:#fff;border-radius:2px;margin:12px 0 10px}
+.snap-planned{text-align:right}
+.snap-planned .snap-cap{margin:0 0 2px}
+.snap-planned-num{font-size:36px;font-weight:800;line-height:1;color:#fff;letter-spacing:-1px}
+.snap-bar{position:relative;height:20px;border-radius:10px;background:rgba(255,255,255,.18);margin-top:22px;overflow:hidden}
+.snap-bar-end{position:absolute;right:9px;top:0;bottom:0;display:flex;align-items:center;font-size:10.5px;font-weight:800;color:#fff}
+.snap-bar-fill{position:absolute;top:0;bottom:0;left:0;width:0;border-radius:10px;background:var(--teal-400);display:flex;align-items:center;
+  justify-content:flex-end;padding-right:9px;font-size:10.5px;font-weight:800;color:var(--teal-900);white-space:nowrap;
+  transition:width 1s cubic-bezier(.65,0,.35,1)}
+.snap-variance{display:flex;align-items:center;gap:14px;margin-top:22px;padding:14px 16px;border-radius:10px;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12)}
+.snap-variance-num{font-size:34px;font-weight:800;line-height:1;color:#f0a24a;letter-spacing:-1px}
+.snap-variance-num.ahead{color:var(--teal-400)}
+.snap-variance-lbl{font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#cfeeea;line-height:1.35}
+.snap-note{font-size:10.5px;color:#9fd6d1;margin-top:12px;line-height:1.45}
+.snap-note b{color:#fff}
+
+/* ---- S-curve ---- */
+.panel{border-radius:16px;background:var(--glass-bg);border:1px solid var(--glass-brd);box-shadow:var(--elev-1);padding:16px 20px 14px}
+.chart-box{position:relative;height:380px}
+
+/* ---- Key Highlights: two dark boxes, numbered points (as in the full report) ---- */
+.kh-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.kh-box{background:radial-gradient(340px circle at 105% -12%,rgba(0,209,197,.22),transparent 70%),linear-gradient(165deg,var(--teal-900),#012724);
+  color:#e6f6f4;border-radius:16px;padding:18px 22px 20px;box-shadow:var(--elev-2)}
+.kh-title{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--teal-400);margin:0 0 14px}
+.kh-list{margin:0;padding:0;list-style:none;counter-reset:kh}
+.kh-list li{counter-increment:kh;position:relative;padding:0 0 11px 34px;font-size:13.5px;line-height:1.55}
+.kh-list li:last-child{padding-bottom:0}
+.kh-list li::before{content:counter(kh);position:absolute;left:0;top:1px;width:22px;height:22px;border-radius:50%;
+  background:rgba(53,196,188,.18);color:#7fe0da;font:700 11.5px/22px var(--mono);text-align:center}
+.kh-list li.kh-empty{padding-left:0;color:#9fc9c4;font-style:italic}
+.kh-list li.kh-empty::before{display:none}
+
+/* ---- main delay + catch-up plan ---- */
+.tbl-wrap{border:1px solid var(--glass-brd);border-radius:14px;overflow:hidden;background:var(--panel);box-shadow:var(--elev-1)}
+.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
+.tbl th{background:var(--teal-050);color:var(--muted);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;
+  text-align:left;padding:10px 14px;border-bottom:1px solid var(--glass-brd)}
+.tbl td{padding:12px 14px;border-bottom:1px solid var(--glass-brd);vertical-align:top;line-height:1.5}
+.tbl tbody tr:last-child td{border-bottom:0}
+.tbl td:first-child{width:200px;font-weight:800;color:var(--kpi-ink)}
+.tbl td:first-child small{display:block;font-weight:600;font-size:11.5px;color:var(--muted)}
+.tbl td.muted{color:var(--muted);font-style:italic}
+
+/* ---- messages ---- */
+.msg{display:none;padding:11px 14px;border-radius:12px;font-size:13px}
+.msg.ok{display:block;background:var(--teal-050);color:var(--teal-700);border:1px solid var(--teal-100)}
+.msg.warn{display:block;background:#f6ecd9;color:#8a5a1c;border:1px solid rgba(198,138,63,.35)}
+.msg.err{display:block;background:#f6e0de;color:var(--red);border:1px solid rgba(179,69,58,.3)}
+[data-theme="dark"] .msg.warn{background:#3a2f15;color:#ffcf7a;border-color:#5a4a1f}
+[data-theme="dark"] .msg.err{background:#3a1a1a;color:#ffb3ae;border-color:#5a2626}
+
+/* ---- footer: dark band with a glowing top line ---- */
+footer.foot{position:relative;z-index:1;text-align:center;font-size:12.5px;color:#cfeeea;margin-top:34px;padding:26px 24px 30px;
+  background:linear-gradient(180deg,#02443f,var(--teal-900))}
+footer.foot::before{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:linear-gradient(90deg,transparent,var(--teal-500),transparent)}
+
+/* ---- motion (reduced-motion respected) ---- */
+@keyframes jda-rise{from{opacity:0;transform:translateY(18px)}}
+@keyframes blob-drift{to{transform:translate3d(64px,44px,0) scale(1.16)}}
+@media (prefers-reduced-motion:no-preference){
+  .page > *{animation:jda-rise .5s cubic-bezier(.22,1,.36,1) both}
+  .aurora .blob{animation:blob-drift 19s ease-in-out infinite alternate}
+  .aurora .b2{animation-duration:25s;animation-delay:-7s}
+  .aurora .b3{animation-duration:22s;animation-delay:-12s}
+}
+@media (prefers-reduced-motion:reduce){ .btn:hover{transform:none} .pj-fill,.snap-bar-fill{transition:none} }
+
+/* ========================= RESPONSIVE ================================== */
+@media(max-width:1180px){ .pj-grid{grid-template-columns:1fr} .snap-label{max-width:none} }
+@media(max-width:980px){
+  header.appbar{position:static;flex-wrap:wrap;padding:12px 16px;gap:12px}
+  .brand-lockup{flex:1 1 100%}
+  .head-actions{width:100%;justify-content:flex-start}
+  .title-block h1{white-space:normal}
+}
+@media(max-width:860px){
+  .kh-grid{grid-template-columns:1fr}
+  .pj-head{display:none}
+  .pj-row{grid-template-columns:repeat(3,1fr);grid-template-areas:"name name st" "track track track" "a p d";gap:8px 12px;padding:13px 0}
+  .pj-name{grid-area:name}
+  .pj-st{grid-area:st;text-align:right}
+  .pj-track{grid-area:track}
+  .pj-num.a{grid-area:a;text-align:left}
+  .pj-num.p{grid-area:p;text-align:center}
+  .pj-num.d{grid-area:d}
+  .pj-num .k{display:block;font-family:var(--font);font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#9fd6d1}
+}
+@media(max-width:640px){
+  .page{padding:16px 16px 4px;gap:22px}
+  .app-logo{height:40px}
+  .title-block h1{font-size:16px}
+  .head-stats{gap:14px;padding:5px 14px}
+  .dark{padding:16px 16px 14px}
+  .panel{padding:12px 10px 12px 6px}
+  .chart-box{height:300px}
+  .kh-box{padding:16px 16px 18px}
+  .tbl thead{display:none}
+  .tbl,.tbl tbody,.tbl tr,.tbl td{display:block;width:auto}
+  .tbl tr{padding:12px 14px;border-bottom:1px solid var(--glass-brd)}
+  .tbl tbody tr:last-child{border-bottom:0}
+  .tbl td,.tbl td:first-child{width:auto;border:0;padding:3px 0}
+  .tbl td[data-k]::before{content:attr(data-k);display:block;margin-top:6px;font-size:10px;font-weight:800;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--muted)}
+}
+
+/* ========================= PRINT / PDF ================================= */
+@media print{
+  .aurora,.head-actions .btn,#zoomBtn{display:none !important}
+  body{background:#fff}
+  header.appbar,.dark,.kh-box,footer.foot,.status-pill{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  header.appbar{position:static}
+  .page{max-width:none;padding:14px 0 0;gap:18px}
+  .page > *{animation:none !important}
+  .panel,.tbl-wrap{box-shadow:none;border:1px solid #ccc}
+  .sec,.dark,.kh-box,.tbl tr{break-inside:avoid}
+  .chart-box{height:320px}
+  .pj-fill,.snap-bar-fill{transition:none}
+  .pj-grid{grid-template-columns:1fr}
+  footer.foot{margin-top:18px}
+}
+</style>
+</head>
+<body>
+
+<div class="aurora" aria-hidden="true"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div></div>
+
+<!-- ============================== HEADER ============================== -->
+<header class="appbar">
+  <div class="brand-lockup">
+    <img class="app-logo" src="data:image/png;base64,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" alt="PETRONAS">
+    <div class="title-block">
+      <h1>JDA3 Programme — Progress Summary</h1>
+      <div class="sub" id="subLine">All Projects</div>
+    </div>
+  </div>
+  <div class="head-actions">
+    <div class="live-pill"><span class="dot" id="statusDot"></span><span id="statusTxt">Loading…</span></div>
+    <div class="head-stats">
+      <div class="head-stat"><div class="k">Data Date</div><div class="v" id="hDataDate">—</div></div>
+      <div class="head-stat"><div class="k">Saved</div><div class="v" id="hSaved">—</div></div>
+    </div>
+    <button class="btn ghost" onclick="window.print()" title="Print, or save as PDF">🖨 Print / PDF</button>
+    <button class="btn ghost" id="themeBtn" onclick="toggleTheme()" title="Dark / light theme" aria-label="Switch dark / light theme">🌙</button>
+  </div>
+</header>
+
+<main class="page">
+  <div class="msg" id="msgBox"></div>
+
+  <!-- 1. Programme snapshot + progress by project -->
+  <section class="sec" id="sProjects" hidden>
+    <div class="sec-head"><h2><span class="bar"></span>Programme Snapshot &amp; Project Progress</h2><span class="pill" id="pjAsOf"></span></div>
+    <div class="pj-grid">
+    <div class="dark snap">
+      <div class="snap-top"><span class="snap-label">Overall programme progress</span><span class="status-pill" id="snapStatus">—</span></div>
+      <div class="snap-actual" id="snapActual">—</div>
+      <div class="snap-cap">Actual</div>
+      <div class="snap-rule"></div>
+      <div class="snap-planned"><div class="snap-cap">Planned</div><div class="snap-planned-num" id="snapPlanned">—</div></div>
+      <div class="snap-bar"><span class="snap-bar-end" id="snapBarEnd"></span><div class="snap-bar-fill" id="snapBarFill"></div></div>
+      <div class="snap-cap">Actual / Plan</div>
+      <div class="snap-variance"><span class="snap-variance-num" id="snapVariance">—</span><span class="snap-variance-lbl">Variance to plan<br>(percentage points)</span></div>
+      <div class="snap-note" id="snapNote"></div>
+    </div>
+    <div class="dark">
+      <div class="pj-head"><span>Project</span><span>Actual vs planned</span><span>Actual</span><span>Planned</span><span>Variance</span><span>Status</span></div>
+      <div id="pjRows"></div>
+      <div class="pj-legend"><span><i class="sw"></i>Actual</span><span><i class="mk"></i>Planned position</span><span class="gap"></span>
+        <span>Status by variance: Ahead ≥ +2 pts · On track ≥ −2 · At risk ≥ −10 · Delayed below −10</span></div>
+      <div class="pj-note" id="pjNote" hidden></div>
+    </div>
+    </div>
+  </section>
+
+  <!-- 2. S-curve, all projects combined -->
+  <section class="sec" id="sCurve" hidden>
+    <div class="sec-head"><h2><span class="bar"></span>S-Curve — All Projects</h2>
+      <div class="sec-tools"><button class="btn outline" id="zoomBtn" onclick="resetZoom()" hidden>↺ Reset Zoom</button><span class="pill" id="cvAsOf"></span></div></div>
+    <div class="panel">
+      <div class="chart-box"><canvas id="curveChart" role="img" aria-label="Planned and actual cumulative progress, all projects"></canvas></div>
+      <p class="hint">┅ Planned &nbsp; ━ Actual — cumulative %, all projects combined (each weighted by its task weight). Hover the chart to see the variance<span id="zoomHint" hidden>; scroll (or pinch) to zoom, drag to pan</span>.</p>
+    </div>
+  </section>
+
+  <!-- 3. Key Highlights + Main Concern & Catch-up Plan (the Key Highlights file) -->
+  <section class="sec" id="sKeyHl" hidden>
+    <div class="sec-head"><h2><span class="bar"></span>Key Highlights</h2><span class="pill" id="khAsOf"></span></div>
+    <div class="kh-grid">
+      <div class="kh-box"><div class="kh-title">Key Highlight</div><ol class="kh-list" id="khHi"></ol></div>
+      <div class="kh-box"><div class="kh-title">Main Concern and Catch-up Plan</div><ol class="kh-list" id="khConcern"></ol></div>
+    </div>
+  </section>
+
+  <!-- 4. Each project's main delay factor and its catch-up plan -->
+  <section class="sec" id="sDelays" hidden>
+    <div class="sec-head"><h2><span class="bar"></span>Main Delay &amp; Catch-up Plan</h2><span class="pill">Main factor per project</span></div>
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>Project</th><th>Main delay factor</th><th>Catch-up plan</th></tr></thead>
+      <tbody id="dlBody"></tbody>
+    </table></div>
+  </section>
+</main>
+
+<footer class="foot">
+  JDA3 Programme · PETRONAS Carigali × Tridiagonal.ai × IBM Malaysia
+</footer>
+
+<script>
+/* ==========================================================================
+   JDA3 PROGRESS SUMMARY — All Projects only, read-only.
+   Shows the report last saved to the database from the full progress report.
+   The CALCULATION functions are copied unchanged from the full report, and the
+   data date / scope are the full report's defaults (All Projects, all phases),
+   so every figure here equals its All Projects page.
+   ========================================================================== */
+try{ if(typeof Chart!=='undefined') Chart.defaults.font.family='"Segoe UI",-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif'; }catch(e){}
+/* Register the zoom plugin defensively — without it the chart still works, just without zoom/pan */
+let ZOOM_OK=false;
+try{
+  const zoomPlugin = window['chartjs-plugin-zoom'] || window.ChartZoom || null;
+  if(typeof Chart!=='undefined' && zoomPlugin){ Chart.register(zoomPlugin); ZOOM_OK=true; }
+}catch(e){ console.warn('Zoom plugin not registered:',e); ZOOM_OK=false; }
+
+/* ---- data from the saved report (same names as in the full report) ---- */
+let SRC='jda3', HAS_ACTUAL=false, ALL_ACTIVITIES=[], REPORT_DATES=[];
+let PROGRESS_DATE=null, PROJECT_MIN=null, PROJECT_MAX=null, DATA_DATE=null;
+let PROJ_ASOF={}, PROJ_DELAYS={}, PROJ_CURVES={}, KEY_HL=null;
+const CURRENT_WBS='ALL';            // the summary always covers every phase
+let SAVED=null, curveChart=null;
+const JDA3_PROJECTS={
+  P2A:'P2a · SAP Master Data', P2B:'P2b · Vision Analytics', P3A:'P3a · Asset Integrity',
+  P4:'P4a · Maintenance & Reliability', P4A:'P4a · Maintenance & Reliability',
+  P6:'P6a · Production Optimisation', P6A:'P6a · Production Optimisation', P7:'P7 · Work Process Efficiency', P7TA:'P7 · Work Process Efficiency',
+  CDF:'CDF · Contextual Data Fusion'
+};
+const REGION_ORDER=[...new Set(Object.values(JDA3_PROJECTS))];
+const regRank=r=>{ const i=REGION_ORDER.indexOf(r); return i<0?999:i; };
+const byOrder=(a,b)=>regRank(a)-regRank(b) || String(a).localeCompare(String(b));
+
+/* ---- helpers ---- */
+const $=id=>document.getElementById(id);
+function stripTime(d){ return new Date(d.getFullYear(),d.getMonth(),d.getDate()); }
+function fmtD(d){ if(!d)return '—'; return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}); }
+function dayKey(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
+function daysBetween(a,b){ return Math.round((b-a)/86400000); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+const sCurve=x=>x<=0?0:x>=1?1:3*x*x-2*x*x*x;
+const fmtDT=ms=>new Date(ms).toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false});
+function msg(text,type){
+  const box=$('msgBox');
+  if(type==='clear'){ box.className='msg'; box.textContent=''; return; }
+  box.className='msg '+type; box.textContent=text;
+}
+function setStatus(txt,cls){ $('statusDot').className='dot'+(cls?' '+cls:''); $('statusTxt').textContent=txt; }
+
+/* ==========================================================================
+   CALCULATION — copied unchanged from the full report
+   ========================================================================== */
+/* Build a daily weight map for a set of activities, optionally clipped to [cs,ce]. */
+function dailyMap(acts,cs,ce){
+  const daily={}; let total=0;
+  acts.forEach(a=>{
+    const n=daysBetween(a.start,a.finish)+1;
+    const per=a.weight/n;
+    let d0=a.start, d1=a.finish;
+    if(cs && d0<cs) d0=cs;
+    if(ce && d1>ce) d1=ce;
+    // dist 's' (JDA3 tracker): cumulative at day d = w·S((d−start)/(finish−start)), S = 3x²−2x³
+    const L=daysBetween(a.start,a.finish);
+    for(let d=new Date(d0); d<=d1; d=addDays(d,1)){
+      const k=dayKey(d);
+      let inc=per;
+      if(a.dist==='s'){ const i=daysBetween(a.start,d);
+        inc = L<=0 ? a.weight : a.weight*(sCurve(i/L)-sCurve(Math.max(0,i-1)/L)); }
+      if(!daily[k]) daily[k]={w:0,active:0};
+      daily[k].w+=inc; daily[k].active++; total+=inc;
+    }
+  });
+  return {daily,total};
+}
+/* Turn a daily map into a cumulative series normalised by `normTotal`. */
+function seriesFrom(daily,normTotal){
+  const keys=Object.keys(daily).sort();
+  let cum=0; const series=[]; let maxConcurrent=0;
+  keys.forEach(k=>{
+    const o=daily[k]; cum+=o.w;
+    maxConcurrent=Math.max(maxConcurrent,o.active);
+    const [y,m,dd]=k.split('-').map(Number);
+    series.push({ date:new Date(y,m-1,dd), dailyW:o.w, cumW:cum, active:o.active,
+      dailyPct: normTotal? o.w/normTotal*100 : 0,
+      cumPct:   normTotal? cum/normTotal*100 : 0 });
+  });
+  return {series,maxConcurrent};
+}
+function overallSeries(acts){ const {daily,total}=dailyMap(acts,null,null); const r=seriesFrom(daily,total); return {...r,total}; }
+/* The effective reporting column for an as-of date = the latest reporting date on/before it. */
+function effReportDate(asof){
+  if(!REPORT_DATES.length || !asof) return null;
+  let eff=null;
+  for(const d of REPORT_DATES){ if(d<=asof) eff=d; else break; }
+  return eff;
+}
+/* Planned % TO DATE from the task baseline */
+function plannedToDate(acts,asof){
+  if(!asof) return 0;
+  return plannedPctAt(overallSeries(acts).series, asof);
+}
+/* Actual % TO DATE — weighted cumulative value from the effective reporting column */
+function actualToDate(acts,asof){
+  const eff=effReportDate(asof);
+  if(!eff) return {pct:0, eff:null};
+  const t=eff.getTime(); let w=0, num=0;
+  acts.forEach(a=>{ w+=a.weight; const v=(a.weekly && a.weekly[t]!=null)?a.weekly[t]:0; num+=a.weight*v; });
+  return {pct: w? num/w*100:0, eff};
+}
+/* Scope Plan/Actual/Variance to date */
+function scopeProgress(acts,asof){
+  const use = asof || DATA_DATE;
+  if(!acts.length) return null;
+  const cv=curveProgress(acts,use);                 // S-Curve - Site 1 figures when the projects have them
+  const plan=cv?cv.plan:plannedToDate(acts,use);
+  const ad=actualToDate(acts,use), actual=cv?cv.actual:ad.pct;
+  return {plan, actual, variance:actual-plan, eff:ad.eff, weight:acts.reduce((s,a)=>s+a.weight,0)};
+}
+/* ---- Planned / Actual % and S-curve from each workbook's S-curve sheet ----
+   Per project: the sheet's weekly row on or before the date (actual: the latest filled row).
+   A project without the sheet falls back to its tasks. Several projects are combined
+   weighted by each project's total task weight. */
+function curveRowAt(c,t){ let r=null; for(const p of c.pts){ if(+p.d<=+t) r=p; else break; } return r; }
+function curvePlanAt(c,t){ const r=curveRowAt(c,t); return r?r.plan:0; }
+function curveActRow(c,t){ let r=null; for(const p of c.pts){ if(+p.d>+t) break; if(p.act!=null) r=p; } return r; }
+function curveActAt(c,t){ const r=curveActRow(c,t); return r?r.act:0; }
+function curveScope(acts){
+  if(SRC!=='jda3' || CURRENT_WBS!=='ALL' || !acts || !acts.length) return null;
+  const by={}; acts.forEach(a=>{ (by[a.region]=by[a.region]||[]).push(a); });
+  const parts=Object.entries(by).map(([p,list])=>({p, list, w:list.reduce((s,a)=>s+a.weight,0), c:PROJ_CURVES[p]||null}));
+  return parts.some(x=>x.c) ? parts : null;
+}
+function curveSrc(parts){ const s=[...new Set(parts.filter(x=>x.c).map(x=>x.c.sheet.trim()))]; return s.length===1?s[0]:''; }
+function curveProgress(acts,asof){
+  const parts=asof ? curveScope(acts) : null; if(!parts) return null;
+  let W=0, pl=0, ac=0;
+  parts.forEach(x=>{ W+=x.w;
+    pl+=x.w*(x.c ? curvePlanAt(x.c,asof) : plannedToDate(x.list,asof));
+    ac+=x.w*(x.c ? curveActAt(x.c,asof) : actualToDate(x.list,asof).pct); });
+  if(!W) return null;
+  return {plan:pl/W, actual:ac/W, all:parts.every(x=>x.c), src:curveSrc(parts),
+          rows:parts.filter(x=>x.c).map(x=>({p:x.p, row:curveActRow(x.c,asof)}))};
+}
+/* Planned + Actual cumulative series for the S-curve chart. Several projects → one point a
+   week, lined up on the data date so the last Actual point equals the KPI figures. */
+function curveSeries(acts,asof){
+  const parts=curveScope(acts); if(!parts) return null;
+  const W=parts.reduce((s,x)=>s+x.w,0); if(!W) return null;
+  const tasks=parts.filter(x=>!x.c), tSer=new Map(tasks.map(x=>[x.p, overallSeries(x.list).series]));
+  const pd=new Set(), ad=new Set();
+  if(parts.length===1){
+    parts[0].c.pts.forEach(p=>{ pd.add(+p.d); if(p.act!=null) ad.add(+p.d); });
+  } else {
+    let lo=Infinity, hi=-Infinity;
+    parts.forEach(x=>{ const ds = x.c ? x.c.pts.map(p=>+p.d) : x.list.flatMap(a=>[+a.start,+a.finish]);
+      ds.forEach(t=>{ if(t<lo) lo=t; if(t>hi) hi=t; }); });
+    let d=new Date(asof && +asof>=lo && +asof<=hi ? +asof : hi);
+    while(+d>lo) d=addDays(d,-7);
+    pd.add(lo); ad.add(lo);
+    for(; +d<=hi; d=addDays(d,7)) if(+d>=lo){ pd.add(+d); ad.add(+d); }
+    pd.add(hi); if(asof) ad.add(+asof);
+  }
+  const at=(t,actual)=>parts.reduce((s,x)=>s+x.w*(x.c ? (actual?curveActAt(x.c,t):curvePlanAt(x.c,t))
+      : (actual?actualToDate(x.list,t).pct:plannedPctAt(tSer.get(x.p),t))),0)/W;
+  const build=(set,actual)=>{ let prev=0;
+    return [...set].sort((a,b)=>a-b).map(ms=>{ const v=at(new Date(ms),actual);
+      const pt={date:new Date(ms), dailyW:0, cumW:v, active:0, dailyPct:v-prev, cumPct:v}; prev=v; return pt; }); };
+  return {plan:build(pd,false), act:asof?build(new Set([...ad].filter(ms=>ms<=+asof)),true):[], all:!tasks.length, src:curveSrc(parts)};
+}
+/* Actual cumulative S-curve straight from the weekly reporting snapshots (task-based fallback) */
+function actualSeries(acts,normTotal,asof){
+  const eff=effReportDate(asof);
+  const series=[];
+  if(!eff||!normTotal) return series;
+  for(const d of REPORT_DATES){
+    if(d>eff) break;
+    const t=d.getTime(); let num=0;
+    acts.forEach(a=>{ const v=(a.weekly && a.weekly[t]!=null)?a.weekly[t]:0; num+=a.weight*v; });
+    series.push({date:new Date(d), dailyW:0, cumW:num, active:0,
+      dailyPct:0, cumPct: num/normTotal*100});
+  }
+  return series;
+}
+/* Cumulative planned % of a series as of a given date */
+function plannedPctAt(series,date){
+  if(!series.length) return 0;
+  if(date < series[0].date) return 0;
+  if(date >= series[series.length-1].date) return series[series.length-1].cumPct;
+  let v=0; for(const p of series){ if(p.date<=date) v=p.cumPct; else break; }
+  return v;
+}
+function projShort(reg){
+  const code=String(reg).split(' · ')[0].trim();
+  const m=code.match(/^P(\d.*)$/i);
+  return m ? 'Project '+m[1].toUpperCase() : /^cdf$/i.test(code) ? 'Project CDF' : code;
+}
+/* status = variance (actual − planned, pts): ≥ +2 Ahead · ≥ −2 On track · ≥ −10 At risk · else Delayed */
+function spiStatus(actual,plan){
+  if(actual==null) return ['green','No actual'];
+  const v=actual-plan;
+  return v>=2 ? ['green','Ahead'] : v>=-2 ? ['green','On track'] : v>=-10 ? ['amber','At risk'] : ['red','Delayed'];
+}
+
+/* ==========================================================================
+   LOAD — rebuild the data from the saved report (the parts this page uses)
+   ========================================================================== */
+function hydrate(snap){
+  SRC = snap.src || 'p6';
+  PROJ_ASOF = Object.fromEntries(Object.entries(snap.projAsOf||{}).map(([p,t])=>[p,new Date(t)]));
+  PROJ_DELAYS = Object.fromEntries(Object.entries(snap.projDelays||{}).map(([p,l])=>[p, l==null?null:
+    l.map(x=>({rank:x.rank, factor:x.factor||'', plan:x.plan||'', date:x.date?new Date(x.date):null}))]));
+  KEY_HL = snap.keyHl ? {hi:snap.keyHl.hi||[], concern:snap.keyHl.concern||[],
+    asOf:snap.keyHl.asOf?new Date(snap.keyHl.asOf):null, file:snap.keyHl.file||''} : null;
+  PROJ_CURVES = Object.fromEntries(Object.entries(snap.projCurves||{}).map(([p,c])=>[p,
+    {sheet:c.sheet||'S-Curve - Site 1', asOf:c.asOf?new Date(c.asOf):null,
+     pts:(c.pts||[]).map(([d,plan,act])=>({d:new Date(d), plan, act:act==null?null:act}))}]));
+  ALL_ACTIVITIES = (snap.activities||[]).map(a=>({
+    id:a.id, name:a.name, region:a.region, wbs:a.wbs,
+    start:new Date(a.start), finish:new Date(a.finish), weight:a.weight, dist:a.dist||'', weekly:a.weekly||null }));
+  REPORT_DATES  = (snap.reportDates||[]).map(ms=>new Date(ms)).sort((x,y)=>x-y);
+  HAS_ACTUAL    = !!snap.hasActual;
+  PROGRESS_DATE = snap.progressDate?new Date(snap.progressDate):null;
+  PROJECT_MIN   = new Date(snap.projectMin);
+  PROJECT_MAX   = new Date(snap.projectMax);
+}
+
+/* ==========================================================================
+   RENDER
+   ========================================================================== */
+function renderAll(){
+  // data date = the full report's default: the latest project data date
+  DATA_DATE = stripTime(PROGRESS_DATE || PROJECT_MIN);
+  const asof=DATA_DATE, acts=ALL_ACTIVITIES;
+  // overall — all projects, every phase (as the full report's programme snapshot)
+  let plan=plannedToDate(acts,asof), actual=HAS_ACTUAL?actualToDate(acts,asof).pct:null;
+  const cv=curveProgress(acts,asof);
+  if(cv){ plan=cv.plan; if(HAS_ACTUAL) actual=cv.actual; }
+  // one row per project (as the full report's Workstream progress)
+  const by={}; acts.forEach(a=>{ (by[a.region]=by[a.region]||[]).push(a); });
+  const stats=Object.entries(by).map(([reg,list])=>{
+    const pg=scopeProgress(list,asof), p=pg?pg.plan:0, a=HAS_ACTUAL&&pg?pg.actual:null;
+    return {reg, plan:p, actual:a, variance:a==null?null:a-p};
+  }).sort((a,b)=>byOrder(a.reg,b.reg));
+
+  $('hDataDate').textContent=fmtD(asof);
+  $('hSaved').textContent=SAVED?fmtDT(SAVED.savedAtMs).replace(/ \d{4},/,','):'—';
+  $('subLine').textContent='All Projects · as of '+fmtD(asof);
+  ['pjAsOf','cvAsOf'].forEach(id=>{ $(id).textContent='All Projects · as of '+fmtD(asof); });
+  renderSnapshot(asof,plan,actual);
+  renderProjects(asof,stats);
+  renderCurve(asof);
+  renderKeyHighlights();
+  renderDelays();
+}
+
+/* ---- programme snapshot: overall actual / planned, actual-to-plan bar, variance (as in the full report) ---- */
+function renderSnapshot(asof,plan,act){
+  const f1=v=>v==null?'—':v.toFixed(1)+'%';
+  const [cls,lbl]=spiStatus(act,plan), pill=$('snapStatus');
+  pill.className='status-pill '+(act==null?'none':cls); pill.textContent=act==null?'No actual':lbl;
+  $('snapActual').textContent=f1(act);
+  $('snapPlanned').textContent=f1(plan);
+  $('snapBarEnd').textContent=f1(plan);
+  const fill=$('snapBarFill');
+  fill.textContent = act==null?'':f1(act);
+  fill.dataset.w = act==null ? 0 : (plan>0 ? Math.min(act/plan,1)*100 : 100);   // the bar is the plan; the fill is actual ÷ plan
+  const vEl=$('snapVariance');
+  if(act==null){ vEl.textContent='—'; vEl.classList.remove('ahead'); }
+  else { const v=Math.round((act-plan)*10)/10; vEl.textContent=(v>0?'+':'')+v.toFixed(1); vEl.classList.toggle('ahead',v>=0); }
+  $('snapNote').innerHTML=`As of <b>${fmtD(asof)}</b> · all projects, weighted by task weight`
+    +(act!=null&&plan>0?` · SPI ${(act/plan).toFixed(2)}`:'');
+}
+
+/* ---- progress by project: actual bar, planned marker, variance, status ---- */
+function renderProjects(asof,stats){
+  $('sProjects').hidden=!stats.length;
+  const f1=v=>v==null?'—':v.toFixed(1)+'%';
+  const sub=r=>String(r).includes(' · ')?String(r).split(' · ').slice(1).join(' · '):'';
+  // JDA3 projects with no workbook in the saved report yet: greyed rows
+  const missing = SRC==='jda3' ? REGION_ORDER.filter(p=>!stats.some(r=>r.reg===p)).map(p=>({reg:p, missing:true})) : [];
+  const rows=[...stats, ...missing].sort((a,b)=>byOrder(a.reg,b.reg));
+  $('pjRows').innerHTML=rows.map(r=>{
+    const nm=`<div class="pj-name">${esc(projShort(r.reg))}${sub(r.reg)?`<small>${esc(sub(r.reg))}</small>`:''}</div>`;
+    if(r.missing) return `<div class="pj-row missing">${nm}<div class="pj-track"></div>
+      <div class="pj-num a"><span class="k">Actual</span>—</div><div class="pj-num p"><span class="k">Planned</span>—</div>
+      <div class="pj-num d"><span class="k">Variance</span>—</div><div class="pj-st"><span class="status-pill none">No tracker yet</span></div></div>`;
+    const a=r.actual, p=r.plan, d=r.variance, [cls,lbl]=spiStatus(a,p);
+    return `<div class="pj-row">${nm}
+      <div class="pj-track"><div class="pj-fill" data-w="${Math.max(0,Math.min(a||0,100))}"></div><span class="pj-mark" style="left:${Math.max(0,Math.min(p,100))}%"></span></div>
+      <div class="pj-num a"><span class="k">Actual</span>${f1(a)}</div>
+      <div class="pj-num p"><span class="k">Planned</span>${f1(p)}</div>
+      <div class="pj-num d${d!=null&&d>=0?' ahead':''}"><span class="k">Variance</span>${d==null?'—':(d>0?'+':'')+d.toFixed(1)+'<small> pts</small>'}</div>
+      <div class="pj-st"><span class="status-pill ${a==null?'none':cls}">${a==null?'No actual':lbl}</span></div>
+    </div>`;
+  }).join('');
+  // bars grow from 0
+  requestAnimationFrame(()=>requestAnimationFrame(()=>
+    document.querySelectorAll('#pjRows .pj-fill[data-w], #snapBarFill[data-w]').forEach(f=>{ f.style.width=f.dataset.w+'%'; })));
+  // projects whose latest actual is older than the data date (their own "Today's Date")
+  const stale={};
+  Object.entries(PROJ_ASOF).filter(([p,d])=>+d<+asof && stats.some(r=>r.reg===p))
+    .forEach(([p,d])=>{ (stale[+d]=stale[+d]||[]).push(p); });
+  const names=list=>{ const s=list.sort(byOrder).map(projShort);
+    return s.length>1 ? 'Projects '+s.map(x=>x.replace(/^Project /,'')).join(', ') : s[0]; };
+  const note=Object.entries(stale).sort((x,y)=>x[0]-y[0])
+    .map(([t,list])=>`${esc(names(list))}: latest actual is <b>${fmtD(new Date(+t))}</b>`).join(' · ');
+  $('pjNote').hidden=!note;
+  $('pjNote').innerHTML=note?`⚠ ${note} — planned is shown at ${fmtD(asof)}.`:'';
+}
+
+/* ---- S-curve, all projects combined (the full report's All Projects chart) ---- */
+const MONO_TICKS={family:"'IBM Plex Mono',Consolas,monospace",size:11};
+function hasDateAdapter(){
+  try{ return !!(Chart && Chart._adapters && Chart._adapters._date &&
+        typeof Chart._adapters._date.prototype.format==='function'); }
+  catch(e){ return false; }
+}
+function renderCurve(asof){
+  const acts=ALL_ACTIVITIES, sc=curveSeries(acts,asof);
+  let plan, act;
+  if(sc){ plan=sc.plan; act=HAS_ACTUAL?sc.act:[]; }
+  else { const o=overallSeries(acts); plan=o.series; act=HAS_ACTUAL?actualSeries(acts,o.total,asof):[]; }
+  if(curveChart){ curveChart.destroy(); curveChart=null; }
+  $('sCurve').hidden=!plan.length || typeof Chart==='undefined';
+  if($('sCurve').hidden) return;
+  // one shared date axis; a line's missing dates are bridged (spanGaps)
+  const ms=[...new Set([...plan,...act].map(p=>+p.date))].sort((x,y)=>x-y), at=new Map(ms.map((t,i)=>[t,i]));
+  const col=s=>{ const arr=new Array(ms.length).fill(null); s.forEach(p=>{ arr[at.get(+p.date)]=+p.cumPct.toFixed(3); }); return arr; };
+  const P=col(plan), A=col(act), dates=ms.map(t=>new Date(t));
+  const ink=css('--muted'), line=css('--chart-grid'), cPlan=css('--chart-plan'), cAct=css('--teal-600');
+  let yMax=100; P.concat(A).forEach(v=>{ if(v!=null && v>yMax) yMax=v; }); if(yMax>100) yMax=Math.ceil(yMax/10)*10;
+  const span=(ms[ms.length-1]-ms[0])/864e5, unit=span>150?'month':span>45?'week':'day';
+  const ticks={color:ink,font:MONO_TICKS,maxRotation:0,autoSkip:true,maxTicksLimit:12};
+  const x=hasDateAdapter()
+    ? {type:'time',time:{unit,displayFormats:{month:'MMM yyyy',week:'d MMM',day:'d MMM'}},grid:{color:line},border:{display:false},ticks}
+    : {type:'category',grid:{color:line},border:{display:false},ticks};
+  // the planned curve is shaded underneath (teal gradient, fading towards 0%)
+  const shade=c=>{ const a=c.chart.chartArea; if(!a) return 'rgba(0,161,156,.12)';
+    const g=c.chart.ctx.createLinearGradient(0,a.top,0,a.bottom);
+    g.addColorStop(0,'rgba(0,161,156,.30)'); g.addColorStop(1,'rgba(0,161,156,.03)'); return g; };
+  const pts=c=>({pointBackgroundColor:c,pointBorderWidth:0,pointHoverRadius:5,pointHoverBackgroundColor:c,
+    pointHoverBorderColor:'#fff',pointHoverBorderWidth:2,spanGaps:true,tension:.35});
+  const datasets=[{label:'Planned',data:P,borderColor:cPlan,backgroundColor:shade,fill:'origin',borderWidth:2,borderDash:[4,3],pointRadius:0,...pts(cPlan)}];
+  if(A.some(v=>v!=null)) datasets.push({label:'Actual',data:A,borderColor:cAct,backgroundColor:'transparent',fill:false,borderWidth:2.5,pointRadius:2.5,...pts(cAct)});
+  // Actual − Planned at an axis index (both lines must have a value there) — shown in the tooltip
+  const diffAt=i=>{ if(i==null||i<0) return null; const p=P[i], a=A[i]; return (p==null||a==null)?null:a-p; };
+  $('zoomBtn').hidden=$('zoomHint').hidden=!ZOOM_OK;
+  curveChart=new Chart($('curveChart'),{
+    type:'line',
+    data:{labels:x.type==='time'?dates:dates.map(fmtD),datasets},
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:600},
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{display:true,position:'top',align:'end',
+          labels:{usePointStyle:true,pointStyle:'circle',boxWidth:7,boxHeight:7,color:ink,font:{size:11.5,weight:'600'}}},
+        tooltip:{backgroundColor:'rgba(1,61,57,.95)',padding:12,titleColor:'#7fe0da',cornerRadius:10,
+          titleFont:{...MONO_TICKS,weight:'600'},bodyFont:{...MONO_TICKS,size:11.5},usePointStyle:true,
+          footerFont:{...MONO_TICKS,size:11.5,weight:'700'},footerMarginTop:8,
+          footerColor:c=>{ const p=c.tooltip&&c.tooltip.dataPoints&&c.tooltip.dataPoints[0]; const d=p?diffAt(p.dataIndex):null; return d!=null&&d<0?'#ffb3a7':'#7fe0da'; },
+          callbacks:{
+            title:it=>fmtD(dates[it[0].dataIndex]),
+            label:it=>' '+it.dataset.label+': '+(it.parsed.y==null?'—':it.parsed.y.toFixed(2)+'%'),
+            footer:it=>{ const d=it.length?diffAt(it[0].dataIndex):null;
+              return d==null?'':` Variance (Actual − Planned): ${d>0?'+':''}${d.toFixed(2)} pts`; }
+          }},
+        // scroll / pinch to zoom the dates, drag to pan (as in the full report)
+        ...(ZOOM_OK?{zoom:{pan:{enabled:true,mode:'x'},zoom:{wheel:{enabled:true},pinch:{enabled:true},drag:{enabled:false},mode:'x'}}}:{})
+      },
+      scales:{x,
+        y:{min:0,max:yMax,grid:{color:line},border:{display:false},ticks:{color:ink,font:MONO_TICKS,callback:v=>v+'%'}}}}
+  });
+}
+
+function resetZoom(){ try{ if(curveChart&&curveChart.resetZoom) curveChart.resetZoom(); }catch(e){} }
+
+/* ---- Key Highlights (from the Key Highlights file saved with the report) ---- */
+function renderKeyHighlights(){
+  const k=KEY_HL, on=!!(k && (k.hi.length||k.concern.length)) && SRC==='jda3';
+  $('sKeyHl').hidden=!on;
+  if(!on) return;
+  const li=a=>a.length ? a.map(t=>`<li>${esc(t)}</li>`).join('') : '<li class="kh-empty">Nothing entered.</li>';
+  $('khHi').innerHTML=li(k.hi);
+  $('khConcern').innerHTML=li(k.concern);
+  $('khAsOf').textContent=k.asOf?'as of '+fmtD(k.asOf):'All Projects';
+}
+
+/* ---- each project's main (#1) delay factor and its catch-up plan (Top 5 table in its workbook) ---- */
+function renderDelays(){
+  const projs=[...new Set(ALL_ACTIVITIES.map(a=>a.region))].sort(byOrder);
+  const on=SRC==='jda3' && projs.some(p=>(PROJ_DELAYS[p]||[]).length);
+  $('sDelays').hidden=!on;
+  if(!on) return;
+  $('dlBody').innerHTML=projs.map(p=>{
+    const top=(PROJ_DELAYS[p]||[])[0], sub=String(p).split(' · ').slice(1).join(' · ');
+    return `<tr><td>${esc(projShort(p))}${sub?`<small>${esc(sub)}</small>`:''}</td>`
+      +(top ? `<td data-k="Main delay factor">${esc(top.factor||'—')}</td><td data-k="Catch-up plan">${esc(top.plan||'—')}</td>`
+            : `<td colspan="2" class="muted">Not filled in yet.</td>`)+'</tr>'; }).join('');
+}
+
+/* ==========================================================================
+   THEME + PRINT
+   ========================================================================== */
+function toggleTheme(){
+  const dark=document.documentElement.getAttribute('data-theme')==='dark';
+  document.documentElement.setAttribute('data-theme', dark?'light':'dark');
+  $('themeBtn').textContent=dark?'🌙':'☀️';
+  if(ALL_ACTIVITIES.length) renderCurve(DATA_DATE);   // recolour the chart
+}
+// fit the chart to the printed page (and back)
+['beforeprint','afterprint'].forEach(ev=>window.addEventListener(ev,()=>{ if(curveChart) curveChart.resize(); }));
+
+/* ==========================================================================
+   SHARED DATABASE (Firebase Firestore, project jda3-9c0c5 — same record as the full report)
+   Reads progressReport/current: the report last saved with "Save to database" in the
+   full report. `data` is the saved report JSON, gzip + base64 (enc 'gzip+b64') or plain JSON.
+   This page never writes to the database.
+   ========================================================================== */
+const FIREBASE_CONFIG={
+  apiKey:"AIzaSyAs9Jg5RDaaU9yH_2e38EOd3nAvLIhz_HM",
+  authDomain:"jda3-9c0c5.firebaseapp.com",
+  projectId:"jda3-9c0c5",
+  storageBucket:"jda3-9c0c5.firebasestorage.app",
+  messagingSenderId:"842256934283",
+  appId:"1:842256934283:web:c2f5610ca5b37ed0d13b8e"
+};
+const FIREBASE_SDK='https://www.gstatic.com/firebasejs/10.13.0/';
+async function gunzipB64(b64){
+  const u=Uint8Array.from(atob(b64),c=>c.charCodeAt(0));
+  return new Response(new Blob([u]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
+}
+function dbErrText(e){
+  const code=e&&e.code||'';
+  if(code==='permission-denied') return 'the database refused access';
+  if(code==='unavailable'||/network|fetch|import/i.test(String(e&&e.message))) return 'the database could not be reached — check your internet connection and reload';
+  return (e&&e.message)||String(e);
+}
+async function loadSaved(){
+  setStatus('Loading…'); msg('Loading the latest saved report…','warn');
+  try{
+    const [appMod,fsMod]=await Promise.all([import(FIREBASE_SDK+'firebase-app.js'),import(FIREBASE_SDK+'firebase-firestore.js')]);
+    const app=appMod.getApps().find(a=>a.name==='progress-summary')||appMod.initializeApp(FIREBASE_CONFIG,'progress-summary');
+    const snap=await fsMod.getDoc(fsMod.doc(fsMod.getFirestore(app),'progressReport','current'));
+    if(!snap.exists()){
+      setStatus('No saved report','err');
+      msg('No report has been saved yet — upload the project workbooks in the full progress report and click “Save to database”.','warn');
+      return;
+    }
+    const d=snap.data();
+    hydrate(JSON.parse(d.enc==='gzip+b64' ? await gunzipB64(d.data) : d.data));
+    if(!ALL_ACTIVITIES.length){ setStatus('No data','err'); msg('The saved report has no projects in it.','warn'); return; }
+    SAVED={version:d.version||1, savedAtMs:d.savedAtMs};
+    renderAll();
+    setStatus('Saved report','ok'); msg('clear');
+  }catch(e){
+    console.error(e); setStatus('Database offline','err');
+    msg('Could not load the saved report: '+dbErrText(e)+'.','err');
+  }
+}
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',loadSaved); else loadSaved();
+</script>
+</body></html>
