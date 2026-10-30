@@ -1,0 +1,1149 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FOR3NSIQ MANAGEMENT PROGRESS SUMMARY</title>
+<!-- link preview (Teams, Outlook, WhatsApp…) -->
+<meta name="description" content="JDA3 programme progress at a glance: overall and per-project planned vs actual progress, S-curve, key highlights and catch-up plans.">
+<meta property="og:title" content="FOR3NSIQ MANAGEMENT PROGRESS SUMMARY">
+<meta property="og:description" content="JDA3 programme progress at a glance: overall and per-project planned vs actual progress, S-curve, key highlights and catch-up plans.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://for3nsiq-management-progress-summar.vercel.app/">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<!--
+  ============================================================================
+  JDA3 PROGRAMME — PROGRESS SUMMARY  (All Projects only)
+  A short management view of the full progress report (jda3-progress-report.html).
+   - The page opens the report last SAVED to the database from the full report
+     ("Save to database"), so both pages show the same data.
+   - "Upload Snapshot" opens a snapshot file saved with "Save / Share Snapshot" in
+     the full report: a preview here, until "Save to database" publishes it for
+     everyone (summary and full report alike).
+   - Planned / actual % and the S-curve use the same calculation as the full
+     report's All Projects page (copied unchanged — see CALCULATION below).
+  ============================================================================
+-->
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<!-- Date adapter for the Chart.js time axis (bundle includes date-fns) -->
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<!-- Zoom / pan for the S-curve (same as the full report) -->
+<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+
+<style>
+/* ===================== JDA3 DESIGN TOKENS (same as the full report) ===================== */
+:root{
+  --teal-900:#013d39; --teal-800:#015149; --teal-700:#0a6e66; --teal-600:#00857c;
+  --teal-500:#00a19c; --teal-400:#35c4bc; --teal-100:#cdeae8; --teal-050:#e7f4f3;
+  --text:#16242a; --muted:#5d6f74; --border:#e2e8ea;
+  --green:#1f9d6b; --amber:#c68a3f; --red:#b3453a;
+  --glass-bg:linear-gradient(165deg,rgba(255,255,255,.96),rgba(231,244,243,.62));
+  --glass-brd:rgba(0,133,124,.17);
+  --elev-1:inset 0 1px 0 rgba(255,255,255,.92),0 2px 8px rgba(2,62,58,.06),0 10px 28px rgba(2,62,58,.08);
+  --elev-2:inset 0 1px 0 rgba(255,255,255,.92),0 8px 22px rgba(2,62,58,.12),0 24px 56px rgba(2,62,58,.16);
+  --font:"Segoe UI",-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif;
+  --mono:'IBM Plex Mono',Consolas,'Courier New',monospace;
+  --chart-grid:#dde6e5; --chart-plan:#8a9a97;
+  --kpi-ink:var(--teal-900); --emph:var(--teal-700);
+  --bg:#eef4f4; --panel:#ffffff;
+  --side-1:var(--teal-900); --side-2:#012724;     /* sidebar */
+}
+[data-theme="dark"]{
+  --bg:#0a1716; --panel:#10211f;
+  --side-1:#012e2b; --side-2:#011a18;
+  --text:#e4efee; --muted:#9db3b1; --border:#21403c;
+  --teal-050:#0f2b28; --teal-100:#1d4a45;
+  --glass-bg:linear-gradient(165deg,rgba(20,42,40,.94),rgba(12,30,28,.80));
+  --glass-brd:rgba(53,196,188,.16);
+  --elev-1:0 2px 8px rgba(0,0,0,.28),0 10px 28px rgba(0,0,0,.22);
+  --elev-2:0 8px 22px rgba(0,0,0,.34),0 24px 56px rgba(0,0,0,.3);
+  --chart-grid:#21403c; --chart-plan:#7f9592;
+  --kpi-ink:#e4efee; --emph:var(--teal-400);
+}
+*{box-sizing:border-box}
+[hidden]{display:none !important}
+html,body{margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:var(--font);font-size:15.5px;line-height:1.6;color:var(--text);
+  background:
+    radial-gradient(1100px 540px at 85% -8%,rgba(0,161,156,.14),transparent 60%),
+    radial-gradient(950px 640px at -12% 34%,rgba(10,110,102,.10),transparent 55%),
+    radial-gradient(1000px 720px at 72% 108%,rgba(0,133,124,.09),transparent 60%),
+    var(--bg);
+  background-attachment:fixed;transition:background .3s ease,color .3s ease}
+[data-theme="dark"] body{background:
+    radial-gradient(1100px 540px at 85% -8%,rgba(0,161,156,.10),transparent 60%),
+    radial-gradient(950px 640px at -12% 34%,rgba(10,110,102,.10),transparent 55%),
+    var(--bg);background-attachment:fixed}
+h1,h2,h3{margin:0}
+button{font-family:inherit;cursor:pointer}
+
+/* aurora: fixed, non-interactive background blobs */
+.aurora{position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:0}
+.aurora .blob{position:absolute;border-radius:50%;filter:blur(72px);opacity:.35;mix-blend-mode:multiply}
+[data-theme="dark"] .aurora .blob{mix-blend-mode:screen;opacity:.12}
+.aurora .b1{width:560px;height:560px;background:radial-gradient(circle at 32% 32%,#2fd6cb,transparent 70%);top:-180px;right:-100px}
+.aurora .b2{width:460px;height:460px;background:radial-gradient(circle at 60% 42%,#0a8f86,transparent 70%);bottom:-200px;right:26%}
+.aurora .b3{width:400px;height:400px;background:radial-gradient(circle at 50% 50%,#56e0d5,transparent 70%);top:6%;left:-160px}
+
+/* ============================== HEADER ==================================== */
+header.appbar{position:sticky;top:0;z-index:100;display:flex;align-items:center;gap:18px;padding:12px 24px;color:#fff;
+  background:linear-gradient(180deg,var(--teal-700),var(--teal-600));box-shadow:0 2px 8px rgba(1,40,36,.18)}
+.brand-lockup{display:flex;align-items:center;gap:14px;flex:1;min-width:0}
+.title-block{min-width:0;display:flex;flex-direction:column-reverse}
+.title-block h1{font-size:17px;font-weight:700;letter-spacing:-.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.head-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.live-pill{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:700;padding:6px 13px;border-radius:999px;
+  background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.2)}
+.dot{width:9px;height:9px;border-radius:50%;background:#f0a24a;box-shadow:0 0 0 3px rgba(240,162,74,.3)}
+.dot.ok{background:#8dffce;box-shadow:0 0 0 3px rgba(141,255,206,.28)}
+.dot.err{background:#ff6b6b;box-shadow:0 0 0 3px rgba(255,107,107,.25)}
+.btn{border:0;border-radius:999px;padding:8px 16px;font-size:13px;font-weight:700;display:inline-flex;align-items:center;gap:7px;
+  background:#fff;color:var(--teal-700);box-shadow:0 3px 10px rgba(0,0,0,.16);transition:transform .15s ease,box-shadow .15s ease}
+.btn:hover{transform:translateY(-2px)}
+.btn:active{transform:scale(.96)}
+.btn.ghost{color:#fff;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.2);box-shadow:none}
+
+/* ============================== PAGE ====================================== */
+.shell{position:relative;z-index:1;display:flex;align-items:flex-start;gap:22px;max-width:1560px;margin:0 auto;padding:24px 22px 8px}
+.page{flex:1;min-width:0;display:flex;flex-direction:column;gap:26px}
+.sec{display:flex;flex-direction:column;gap:14px;min-width:0;scroll-margin-top:96px}
+
+/* ============================== SIDEBAR (deep-teal data panel, as in the full report) ============================== */
+aside.sidebar{position:sticky;top:90px;flex:0 0 262px;width:262px;max-height:calc(100vh - 110px);overflow:auto;padding:16px 15px;
+  background:linear-gradient(165deg,var(--side-1),var(--side-2));border-radius:18px;box-shadow:var(--elev-2);color:#cfeeea}
+aside.sidebar::-webkit-scrollbar{width:7px}
+aside.sidebar::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14);border-radius:8px}
+.brand-block{display:flex;align-items:center;gap:11px;padding:4px 4px 14px;border-bottom:1px solid rgba(255,255,255,.09);margin-bottom:6px}
+.brand-logo{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-weight:900;font-size:15px;color:#fff;letter-spacing:.5px;
+  background:linear-gradient(150deg,var(--teal-500),var(--teal-700));box-shadow:0 4px 10px rgba(0,133,124,.35)}
+/* sidebar brand: the aperture mark (SVG) instead of a lettered badge */
+.brand-logo.mark{background:none;box-shadow:none;border-radius:0}
+.brand-logo.mark svg{display:block;width:42px;height:42px;filter:drop-shadow(0 3px 8px rgba(0,0,0,.3))}
+.brand-meta .b1{font-size:12.5px;font-weight:800;color:#fff;line-height:1.15;letter-spacing:.01em;white-space:nowrap}
+.brand-meta .b2{font-size:10px;color:#9fd6d1;margin-top:2px;letter-spacing:.3px}
+.side-title{font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#7fe0da;margin:18px 0 9px;display:flex;align-items:center;gap:7px}
+.side-nav{display:flex;flex-direction:column;gap:3px}
+.nav-item{position:relative;display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:10px;font-size:13px;font-weight:600;
+  color:#cfeeea;text-decoration:none;transition:.15s}
+.nav-item .ni{width:20px;text-align:center;font-size:13px;opacity:.85}
+.nav-item:hover{background:rgba(255,255,255,.08);color:#fff}
+.nav-item.active{background:rgba(255,255,255,.12);color:#fff}
+.nav-item[hidden]{display:none}
+.nav-item.active::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:3px;background:var(--teal-400)}
+.side-dates{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:12px;padding:10px 12px;border-radius:10px;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1)}
+.side-dates .k{color:#9fd6d1;font-weight:700}
+.side-dates .v{color:#fff;font-family:var(--mono);font-size:11.5px;text-align:right;white-space:nowrap}
+.side-proj{margin-top:12px}
+/* S-curve choice: All Projects / CDF (the full report's segmented buttons) */
+.seg{display:flex;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);border-radius:10px;overflow:hidden}
+.seg button{flex:1;border:0;background:transparent;color:#cfeeea;padding:8px 4px;font-size:12px;font-weight:700}
+.seg button.active{background:linear-gradient(150deg,var(--teal-500),var(--teal-700));color:#fff;box-shadow:0 4px 10px rgba(0,133,124,.35)}
+.side-hint{font-size:11.5px;line-height:1.7;color:#9fd6d1}
+.side-hint b{color:#cfeeea}
+.side-foot{margin-top:22px;padding-top:14px;border-top:1px solid rgba(255,255,255,.1);font-size:9.5px;line-height:1.6;color:#7fb8b2;letter-spacing:.3px}
+/* partner logos, on a white card (the logos are made for a light background) */
+.side-logos{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:22px;padding:10px 12px;border-radius:12px;
+  background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+.side-logos img{display:block;width:auto;min-width:0}
+.side-logos .lg-petronas{height:40px}
+.side-logos .lg-tri{height:22px}
+.side-logos .lg-ibm{height:18px}
+.sec-head{display:flex;align-items:center;justify-content:space-between;gap:10px 14px;flex-wrap:wrap}
+.sec-head h2{font-size:19px;font-weight:800;letter-spacing:-.3px;color:var(--text);display:flex;align-items:center;gap:9px}
+.sec-head .bar{width:5px;height:20px;border-radius:3px;background:linear-gradient(180deg,var(--teal-400),var(--teal-700))}
+.pill{display:inline-flex;align-items:center;gap:6px;background:var(--teal-050);border:1px solid var(--teal-100);color:var(--teal-700);
+  font-size:11px;font-weight:700;padding:2px 10px;border-radius:999px;letter-spacing:.02em}
+.pill::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--teal-600)}
+[data-theme="dark"] .pill{color:var(--teal-400)}
+.hint{font-size:11.5px;color:var(--muted);margin:10px 0 0}
+.sec-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+/* the same S-curve choice beside the S-curve title, for narrow screens where the sidebar is hidden */
+.cv-pick{display:none;border:1.5px solid var(--teal-500);border-radius:999px;overflow:hidden}
+.cv-pick button{border:0;background:transparent;color:var(--teal-700);padding:4px 12px;font-size:12px;font-weight:700}
+.cv-pick button.active{background:var(--teal-600);color:#fff}
+[data-theme="dark"] .cv-pick button{color:var(--teal-400)}
+[data-theme="dark"] .cv-pick button.active{color:#fff}
+.btn.outline{background:transparent;border:1.5px solid var(--teal-500);color:var(--teal-700);box-shadow:none;padding:4px 12px;font-size:12px}
+.btn.outline:hover{background:var(--teal-050)}
+[data-theme="dark"] .btn.outline{color:var(--teal-400)}
+
+/* ---- deep-teal data panel: progress by project ---- */
+.dark{background:radial-gradient(340px circle at 105% -12%,rgba(0,209,197,.22),transparent 70%),linear-gradient(165deg,var(--teal-900),#012724);
+  color:#e6f6f4;border-radius:16px;box-shadow:var(--elev-2);padding:18px 24px 16px}
+/* project rows — the full report's "Workstream progress" design */
+.pj-head,.pj-row{display:grid;grid-template-columns:200px 1fr 96px;gap:14px;align-items:center}
+.pj-head{margin-bottom:2px}
+.pj-head span{grid-column:3;text-align:right;font-size:10px;font-weight:800;letter-spacing:.04em;color:#9fd6d1}
+.pj-row{padding:6px 0}
+.pj-row.missing{opacity:.5}
+.pj-name{min-width:0;font-size:11.5px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;color:#fff;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pj-name small{display:block;font-size:10px;font-weight:600;letter-spacing:0;text-transform:none;color:#9fd6d1;
+  white-space:normal;line-height:1.3;margin-top:1px}
+.pj-track{position:relative;height:11px;border-radius:6px;background:rgba(255,255,255,.18)}
+.pj-fill{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:6px;background:var(--teal-400);transition:width 1s cubic-bezier(.65,0,.35,1)}
+.pj-mark{position:absolute;top:-5px;bottom:-5px;width:2px;margin-left:-1px;background:#fff;border-radius:1px;box-shadow:0 0 0 1px rgba(1,39,36,.4)}
+.pj-nums{text-align:right;line-height:1.2;white-space:nowrap}
+.pj-nums .a{font-size:12.5px;font-weight:800;color:var(--teal-400)}
+.pj-nums .p{font-size:12.5px;font-weight:800;color:#fff;margin-left:7px}
+.pj-nums .d{display:block;font-size:10px;color:#9fd6d1;margin-top:1px}
+.pj-nums .d.behind{color:#f0a24a}
+.pj-nums .d.ahead{color:var(--teal-400)}
+.pj-legend{display:flex;align-items:center;flex-wrap:wrap;gap:6px 18px;margin-top:8px;padding-top:9px;
+  border-top:1px solid rgba(255,255,255,.1);font-size:10.5px;color:#cfeeea}
+.pj-legend b{font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#9fd6d1}
+.pj-legend span{display:inline-flex;align-items:center;gap:6px}
+.pj-legend .sw{width:22px;height:8px;border-radius:5px;background:var(--teal-400)}
+.pj-legend .mk{width:2px;height:14px;background:#fff}
+/* programme snapshot (left, all projects except CDF) beside the project rows (right) — as in the full report */
+.pj-grid{display:grid;grid-template-columns:minmax(240px,270px) 1fr;gap:16px;align-items:stretch}
+/* the project rows spread over the panel's height (it matches the snapshot box beside it) */
+.pj-panel{display:flex;flex-direction:column;padding:14px 20px 12px}
+.pj-panel #pjRows{flex:1;display:flex;flex-direction:column;justify-content:space-around}
+.snap{padding:16px 20px 14px}
+.snap-top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px}
+.snap-label{font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#cfeeea;line-height:1.45}
+.snap-actual{font-size:38px;font-weight:800;line-height:1;color:var(--teal-400);letter-spacing:-1px}
+.snap-cap{font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#9fd6d1;margin-top:4px}
+.snap-rule{height:2px;background:#fff;border-radius:2px;margin:8px 0 7px}
+.snap-planned{text-align:right}
+.snap-planned .snap-cap{margin:0 0 1px}
+.snap-planned-num{font-size:24px;font-weight:800;line-height:1;color:#fff;letter-spacing:-.5px}
+.snap-bar{position:relative;height:15px;border-radius:8px;background:rgba(255,255,255,.18);margin-top:12px;overflow:hidden}
+.snap-bar-end{position:absolute;right:8px;top:0;bottom:0;display:flex;align-items:center;font-size:9.5px;font-weight:800;color:#fff}
+.snap-bar-fill{position:absolute;top:0;bottom:0;left:0;width:0;border-radius:8px;background:var(--teal-400);display:flex;align-items:center;
+  justify-content:flex-end;padding-right:8px;font-size:9.5px;font-weight:800;color:var(--teal-900);white-space:nowrap;
+  transition:width 1s cubic-bezier(.65,0,.35,1)}
+.snap-variance{display:flex;align-items:center;gap:10px;margin-top:12px;padding:9px 12px;border-radius:10px;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12)}
+.snap-variance-num{font-size:22px;font-weight:800;line-height:1;color:#f0a24a;letter-spacing:-.5px}
+.snap-variance-num.ahead{color:var(--teal-400)}
+.snap-variance-lbl{font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#cfeeea;line-height:1.35}
+.snap-note{font-size:10px;color:#9fd6d1;margin-top:8px;line-height:1.45}
+.snap-note b{color:#fff}
+/* the snapshot box matches the project rows' height: its "As of …" note sits at the bottom, level with their legend */
+#snapBox{display:flex;flex-direction:column}
+.snap-body{flex:1;display:flex;flex-direction:column}
+.snap-body .snap-note{margin-top:auto;padding-top:8px}
+
+/* ---- S-curve ---- */
+.panel{border-radius:16px;background:var(--glass-bg);border:1px solid var(--glass-brd);box-shadow:var(--elev-1);padding:16px 20px 14px}
+.chart-box{position:relative;height:380px}
+
+/* ---- Key Highlights: two dark boxes, numbered points (as in the full report) ---- */
+.kh-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.kh-box{background:radial-gradient(340px circle at 105% -12%,rgba(0,209,197,.22),transparent 70%),linear-gradient(165deg,var(--teal-900),#012724);
+  color:#e6f6f4;border-radius:16px;padding:18px 22px 20px;box-shadow:var(--elev-2)}
+.kh-title{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--teal-400);margin:0 0 14px}
+.kh-list{margin:0;padding:0;list-style:none;counter-reset:kh}
+.kh-list li{counter-increment:kh;position:relative;padding:0 0 11px 34px;font-size:13.5px;line-height:1.55}
+.kh-list li:last-child{padding-bottom:0}
+.kh-list li::before{content:counter(kh);position:absolute;left:0;top:1px;width:22px;height:22px;border-radius:50%;
+  background:rgba(53,196,188,.18);color:#7fe0da;font:700 11.5px/22px var(--mono);text-align:center}
+.kh-list .kh-sub{display:block;margin-top:3px;font-size:12.5px;color:#9fd6d1}
+.kh-list li.kh-group{counter-increment:none;padding:0 0 14px}
+.kh-list li.kh-group:last-child{padding-bottom:0}
+.kh-list li.kh-group::before{display:none}
+.kh-gtitle{padding:0 0 8px;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#7fe0da}
+.kh-list li.kh-empty{padding-left:0;color:#9fc9c4;font-style:italic}
+.kh-list li.kh-empty::before{display:none}
+
+/* ---- main concern + catch-up plan ---- */
+.tbl-wrap{border:1px solid var(--glass-brd);border-radius:14px;overflow:hidden;background:var(--panel);box-shadow:var(--elev-1)}
+.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
+.tbl th{background:var(--teal-050);color:var(--muted);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;
+  text-align:left;padding:10px 14px;border-bottom:1px solid var(--glass-brd)}
+.tbl td{padding:12px 14px;border-bottom:1px solid var(--glass-brd);vertical-align:top;line-height:1.5}
+.tbl tbody tr:last-child td{border-bottom:0}
+.tbl td:first-child{width:200px;font-weight:800;color:var(--kpi-ink)}
+.tbl td:first-child small{display:block;font-weight:600;font-size:11.5px;color:var(--muted)}
+.tbl td.muted{color:var(--muted);font-style:italic}
+
+/* ---- messages ---- */
+.msg{display:none;padding:11px 14px;border-radius:12px;font-size:13px}
+.msg.ok{display:block;background:var(--teal-050);color:var(--teal-700);border:1px solid var(--teal-100)}
+.msg.warn{display:block;background:#f6ecd9;color:#8a5a1c;border:1px solid rgba(198,138,63,.35)}
+.msg.err{display:block;background:#f6e0de;color:var(--red);border:1px solid rgba(179,69,58,.3)}
+[data-theme="dark"] .msg.warn{background:#3a2f15;color:#ffcf7a;border-color:#5a4a1f}
+[data-theme="dark"] .msg.err{background:#3a1a1a;color:#ffb3ae;border-color:#5a2626}
+/* an uploaded snapshot is a preview until "Save to database" (as in the full report) */
+.pv-bar{display:flex;align-items:center;gap:10px 12px;flex-wrap:wrap;padding:12px 16px;border-radius:14px;
+  background:#f6ecd9;border:1px solid rgba(198,138,63,.4);color:#6b4512;font-size:13.5px;line-height:1.45}
+.pv-bar .pv-txt{flex:1 1 420px;min-width:0}
+.pv-bar .ic{color:#f0a24a;font-size:12px}
+.pv-bar .pv-btns{display:flex;flex-wrap:wrap;gap:8px}
+.pv-bar .btn{padding:6px 13px;font-size:12.5px;box-shadow:none}
+.pv-bar .btn.outline{border-color:rgba(198,138,63,.6);color:#6b4512;background:transparent}
+.pv-bar .btn.solid{background:var(--teal-600);color:#fff}
+.pv-bar .btn:disabled{opacity:.55;cursor:wait;transform:none}
+[data-theme="dark"] .pv-bar{background:#2f2412;border-color:#5a4520;color:#f3d9a8}
+[data-theme="dark"] .pv-bar .btn.outline{color:#f3d9a8}
+
+/* ---- footer: dark band with a glowing top line ---- */
+footer.foot{position:relative;z-index:1;text-align:center;font-size:12.5px;color:#cfeeea;margin-top:34px;padding:26px 24px 30px;
+  background:linear-gradient(180deg,#02443f,var(--teal-900))}
+footer.foot::before{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:linear-gradient(90deg,transparent,var(--teal-500),transparent)}
+
+/* ---- motion (reduced-motion respected) ---- */
+@keyframes jda-rise{from{opacity:0;transform:translateY(18px)}}
+@keyframes blob-drift{to{transform:translate3d(64px,44px,0) scale(1.16)}}
+@media (prefers-reduced-motion:no-preference){
+  .page > *{animation:jda-rise .5s cubic-bezier(.22,1,.36,1) both}
+  .aurora .blob{animation:blob-drift 19s ease-in-out infinite alternate}
+  .aurora .b2{animation-duration:25s;animation-delay:-7s}
+  .aurora .b3{animation-duration:22s;animation-delay:-12s}
+}
+@media (prefers-reduced-motion:reduce){ .btn:hover{transform:none} .pj-fill,.snap-bar-fill{transition:none} }
+
+/* ========================= RESPONSIVE ================================== */
+@media(max-width:1200px){ .pj-grid{grid-template-columns:1fr} }
+@media(max-width:980px){
+  aside.sidebar{display:none}
+  .cv-pick{display:flex}
+  header.appbar{position:static;flex-wrap:wrap;padding:12px 16px;gap:12px}
+  .brand-lockup{flex:1 1 100%}
+  .head-actions{width:100%;justify-content:flex-start}
+  .title-block h1{white-space:normal}
+}
+@media(max-width:860px){
+  .kh-grid{grid-template-columns:1fr}
+}
+@media(max-width:520px){ .pj-head,.pj-row{grid-template-columns:96px 1fr 84px;gap:10px} }
+@media(max-width:640px){
+  .shell{padding:16px 16px 4px}
+  .page{gap:22px}
+  .title-block h1{font-size:16px}
+  .dark{padding:16px 16px 14px}
+  .panel{padding:12px 10px 12px 6px}
+  .chart-box{height:300px}
+  .kh-box{padding:16px 16px 18px}
+  .tbl thead{display:none}
+  .tbl,.tbl tbody,.tbl tr,.tbl td{display:block;width:auto}
+  .tbl tr{padding:12px 14px;border-bottom:1px solid var(--glass-brd)}
+  .tbl tbody tr:last-child{border-bottom:0}
+  .tbl td,.tbl td:first-child{width:auto;border:0;padding:3px 0}
+  .tbl td[data-k]::before{content:attr(data-k);display:block;margin-top:6px;font-size:10px;font-weight:800;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--muted)}
+}
+
+/* ========================= PRINT / PDF ================================= */
+@media print{
+  .aurora,.head-actions .btn,#zoomBtn,aside.sidebar,.cv-pick,.pv-bar{display:none !important}
+  .shell{display:block;max-width:none;padding:0}
+  body{background:#fff}
+  header.appbar,.dark,.kh-box,footer.foot{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  header.appbar{position:static}
+  .page{padding-top:14px;gap:18px}
+  .page > *{animation:none !important}
+  .panel,.tbl-wrap{box-shadow:none;border:1px solid #ccc}
+  .sec,.dark,.kh-box,.tbl tr{break-inside:avoid}
+  .chart-box{height:320px}
+  .pj-fill,.snap-bar-fill{transition:none}
+  .pj-grid{grid-template-columns:1fr}
+  footer.foot{margin-top:18px}
+}
+</style>
+</head>
+<body>
+
+<div class="aurora" aria-hidden="true"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div></div>
+
+<!-- ============================== HEADER ============================== -->
+<header class="appbar">
+  <div class="brand-lockup">
+    <div class="title-block">
+      <h1>FOR3NSIQ - MANAGEMENT PROGRESS SUMMARY</h1>
+    </div>
+  </div>
+  <div class="head-actions">
+    <div class="live-pill"><span class="dot" id="statusDot"></span><span id="statusTxt">Loading…</span></div>
+    <button class="btn ghost" onclick="$('snapFile').click()" title="Load a snapshot file saved with “Save / Share Snapshot” in the full progress report">⬆ Upload Snapshot</button>
+    <input type="file" id="snapFile" accept=".html,.htm,.json" hidden onchange="pickSnapshot(event)">
+    <button class="btn ghost" onclick="window.print()" title="Print, or save as PDF">🖨 Print / PDF</button>
+    <button class="btn ghost" id="themeBtn" onclick="toggleTheme()" title="Dark / light theme" aria-label="Switch dark / light theme">🌙</button>
+  </div>
+</header>
+
+<div class="shell">
+
+<!-- ----------------------- STICKY SIDEBAR (as in the full report) ----------------------- -->
+<aside class="sidebar">
+  <div class="brand-block">
+    <!-- aperture mark: six blades round a hexagonal opening (the gaps are cut out, so the sidebar shows through) -->
+    <div class="brand-logo mark" aria-hidden="true"><svg viewBox="0 0 100 100">
+      <defs>
+        <linearGradient id="apGrad" x1="0.85" y1="0.08" x2="0.15" y2="0.92">
+          <stop offset="0" stop-color="#9af3ea"/><stop offset="0.5" stop-color="#35c4bc"/><stop offset="1" stop-color="#0a8f86"/>
+        </linearGradient>
+        <mask id="apCut">
+          <rect width="100" height="100" fill="#fff"/>
+          <polygon points="50,33 64.72,41.5 64.72,58.5 50,67 35.28,58.5 35.28,41.5" fill="#000"/>
+          <path d="M50 33L123.6 75.5M64.72 41.5L64.72 126.5M64.72 58.5L-8.9 101M50 67L-23.6 24.5M35.28 58.5L35.28 -26.5M35.28 41.5L108.9 -1" stroke="#000" stroke-width="4.5"/>
+        </mask>
+      </defs>
+      <circle cx="50" cy="50" r="47" fill="url(#apGrad)" mask="url(#apCut)"/>
+    </svg></div>
+    <div class="brand-meta"><div class="b1">FOR3NSIQ PERFORMANCE</div><div class="b2">Planned vs Actual · S-Curve</div></div>
+  </div>
+
+  <!-- project start / finish: first task start and last task finish of the View (All Projects excl. CDF, or CDF) -->
+  <div class="side-dates side-proj" id="sideProj" hidden>
+    <span class="k">Project Start</span><span class="v" id="spStart">—</span>
+    <span class="k">Project Finish</span><span class="v" id="spFinish">—</span>
+  </div>
+
+  <div class="side-title">❖ Navigate</div>
+  <nav class="side-nav" id="sideNav">
+    <a class="nav-item active" href="#sProjects" onclick="navTo(event,'sProjects')"><span class="ni">▦</span>Programme Snapshot</a>
+    <a class="nav-item" href="#sCurve" onclick="navTo(event,'sCurve')"><span class="ni">〽</span>S-Curve</a>
+    <a class="nav-item" href="#sKeyHl" onclick="navTo(event,'sKeyHl')"><span class="ni">★</span>Key Highlights</a>
+    <a class="nav-item" href="#sDelays" onclick="navTo(event,'sDelays')"><span class="ni">⚠</span>Concern &amp; Catch-up Plan</a>
+  </nav>
+
+  <!-- page view: All Projects, or CDF (its S-curve and Key Highlights; no concern table) -->
+  <div class="side-title" id="curvePickT" hidden>◵ View</div>
+  <div class="seg" id="curvePick" role="group" aria-label="View" hidden>
+    <button type="button" class="active" data-curve="prog" aria-pressed="true" onclick="pickView('prog')">All Projects</button>
+    <button type="button" data-curve="cdf" aria-pressed="false" onclick="pickView('cdf')">CDF</button>
+  </div>
+
+  <div class="side-logos">
+    <img class="lg-petronas" src="data:image/png;base64,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" alt="PETRONAS">
+    <img class="lg-tri" src="data:image/png;base64,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" alt="Tridiagonal.ai">
+    <img class="lg-ibm" src="data:image/png;base64,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" alt="IBM">
+  </div>
+</aside>
+
+<main class="page">
+  <!-- shown after "Upload Snapshot": the page shows that snapshot until it is saved or discarded -->
+  <div class="pv-bar" id="pvBar" hidden>
+    <span class="pv-txt"><span class="ic">●</span> <b>Preview only — not saved.</b> <span id="pvTxt"></span></span>
+    <span class="pv-btns">
+      <button class="btn outline" onclick="discardPreview()">↺ Discard, show saved report</button>
+      <button class="btn solid" id="pvSave" onclick="saveToDatabase()">💾 Save to database</button>
+    </span>
+  </div>
+  <div class="msg" id="msgBox"></div>
+
+  <!-- 1. Programme snapshot (all projects except CDF; CDF in a small section of its own) + progress by project -->
+  <section class="sec" id="sProjects" hidden>
+    <div class="sec-head"><h2><span class="bar"></span>Programme Snapshot &amp; Project Progress</h2><span class="pill" id="pjAsOf"></span></div>
+    <div class="pj-grid">
+      <div class="dark snap" id="snapBox"></div>
+      <div class="dark pj-panel">
+        <div class="pj-head"><span>Actual | Plan</span></div>
+        <div id="pjRows"></div>
+        <div class="pj-legend"><b>Legend</b><span><i class="sw"></i>Actual progress</span><span><i class="mk"></i>Planned position</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. S-curve: all projects except CDF combined, or CDF on its own (chosen in the sidebar) -->
+  <section class="sec" id="sCurve" hidden>
+    <div class="sec-head"><h2><span class="bar"></span>S-Curve</h2>
+      <div class="sec-tools">
+        <div class="cv-pick" id="cvPick" role="group" aria-label="View" hidden>
+          <button type="button" class="active" data-curve="prog" aria-pressed="true" onclick="pickView('prog')">All Projects</button>
+          <button type="button" data-curve="cdf" aria-pressed="false" onclick="pickView('cdf')">CDF</button>
+        </div>
+        <button class="btn outline" id="zoomBtn" onclick="resetZoom()" hidden>↺ Reset Zoom</button><span class="pill" id="cvAsOf"></span></div></div>
+    <div class="panel">
+      <div class="chart-box"><canvas id="curveChart" role="img" aria-label="Planned and actual cumulative progress, all projects except CDF"></canvas></div>
+      <p class="hint">┅ Planned &nbsp; ━ Actual — cumulative %, <span id="cvWhat">all projects except CDF combined (each weighted by its task weight)</span>. Hover the chart to see the variance<span id="zoomHint" hidden>; scroll (or pinch) to zoom, drag to pan</span>.</p>
+    </div>
+  </section>
+
+  <!-- 3. Key Highlights + Main Concern & Catch-up Plan — All Projects: the Key Highlights file;
+          CDF: that file's "CDF" points and CDF's own concern table -->
+  <section class="sec" id="sKeyHl" hidden>
+    <div class="sec-head"><h2><span class="bar"></span>Key Highlights</h2><span class="pill" id="khAsOf"></span></div>
+    <div class="kh-grid">
+      <div class="kh-box"><div class="kh-title" id="khHiT">Key Highlight</div><ol class="kh-list" id="khHi"></ol></div>
+      <div class="kh-box"><div class="kh-title" id="khConcernT">Main Concern and Catch-up Plan</div><ol class="kh-list" id="khConcern"></ol></div>
+    </div>
+  </section>
+
+  <!-- 4. Each project's main concern factor and its catch-up plan -->
+  <section class="sec" id="sDelays" hidden>
+    <div class="sec-head"><h2><span class="bar"></span>Main Concern &amp; Catch-up Plan</h2><span class="pill">Main factor per project</span></div>
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>Project</th><th>Main concern factor</th><th>Catch-up plan</th></tr></thead>
+      <tbody id="dlBody"></tbody>
+    </table></div>
+  </section>
+</main>
+</div>
+
+<footer class="foot">
+  FOR3NSIQ · PETRONAS Carigali × Tridiagonal.ai × IBM Malaysia
+</footer>
+
+<script>
+/* ==========================================================================
+   JDA3 PROGRESS SUMMARY — All Projects only.
+   Shows the report last saved to the database from the full progress report,
+   or an uploaded snapshot of it (see SNAPSHOT UPLOAD at the end).
+   The CALCULATION functions are copied unchanged from the full report, and the
+   data date / scope are the full report's defaults (All Projects, all phases),
+   so every figure here equals its All Projects page.
+   ========================================================================== */
+try{ if(typeof Chart!=='undefined') Chart.defaults.font.family='"Segoe UI",-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif'; }catch(e){}
+/* Register the zoom plugin defensively — without it the chart still works, just without zoom/pan */
+let ZOOM_OK=false;
+try{
+  const zoomPlugin = window['chartjs-plugin-zoom'] || window.ChartZoom || null;
+  if(typeof Chart!=='undefined' && zoomPlugin){ Chart.register(zoomPlugin); ZOOM_OK=true; }
+}catch(e){ console.warn('Zoom plugin not registered:',e); ZOOM_OK=false; }
+
+/* ---- data from the saved report (same names as in the full report) ---- */
+let SRC='jda3', HAS_ACTUAL=false, ALL_ACTIVITIES=[], REPORT_DATES=[];
+let PROGRESS_DATE=null, PROJECT_MIN=null, PROJECT_MAX=null, DATA_DATE=null;
+let PROJ_ASOF={}, PROJ_DELAYS={}, PROJ_CURVES={}, KEY_HL=null;
+let PROJ_KEYHL={};    // project -> [text] from the KEY HIGHLIGHTS table in its workbook (null = no table)
+const CURRENT_WBS='ALL';            // the summary always covers every phase
+let SAVED=null, curveChart=null;
+const SHOW_ACTUAL=true;             // the S-curve always shows the Actual line
+const JDA3_PROJECTS={
+  P2A:'P2a · SAP Master Data', P2B:'P2b · Vision Analytics', P3A:'P3a · Asset Integrity',
+  P4:'P4a · Maintenance & Reliability', P4A:'P4a · Maintenance & Reliability',
+  P6:'P6a · Production Optimisation', P6A:'P6a · Production Optimisation', P7:'P7 · Work Process Efficiency', P7TA:'P7 · Work Process Efficiency',
+  CDF:'CDF · Contextual Data Fusion'
+};
+const REGION_ORDER=[...new Set(Object.values(JDA3_PROJECTS))];
+const regRank=r=>{ const i=REGION_ORDER.indexOf(r); return i<0?999:i; };
+const byOrder=(a,b)=>regRank(a)-regRank(b) || String(a).localeCompare(String(b));
+
+/* ---- helpers ---- */
+const $=id=>document.getElementById(id);
+function stripTime(d){ return new Date(d.getFullYear(),d.getMonth(),d.getDate()); }
+function fmtD(d){ if(!d)return '—'; return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}).replace('Sept','Sep'); }   // some browsers write "Sept"
+function dayKey(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
+function daysBetween(a,b){ return Math.round((b-a)/86400000); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+const sCurve=x=>x<=0?0:x>=1?1:3*x*x-2*x*x*x;
+const fmtDT=ms=>new Date(ms).toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false});
+function msg(text,type){
+  const box=$('msgBox');
+  if(type==='clear' || (type==null && text==='clear')){ box.className='msg'; box.textContent=''; return; }   // msg('clear') also clears
+  box.className='msg '+type; box.textContent=text;
+}
+function setStatus(txt,cls){ $('statusDot').className='dot'+(cls?' '+cls:''); $('statusTxt').textContent=txt; }
+
+/* ==========================================================================
+   CALCULATION — copied unchanged from the full report
+   ========================================================================== */
+/* Build a daily weight map for a set of activities, optionally clipped to [cs,ce]. */
+function dailyMap(acts,cs,ce){
+  const daily={}; let total=0;
+  acts.forEach(a=>{
+    const n=daysBetween(a.start,a.finish)+1;
+    const per=a.weight/n;
+    let d0=a.start, d1=a.finish;
+    if(cs && d0<cs) d0=cs;
+    if(ce && d1>ce) d1=ce;
+    // dist 's' (JDA3 tracker): cumulative at day d = w·S((d−start)/(finish−start)), S = 3x²−2x³
+    const L=daysBetween(a.start,a.finish);
+    for(let d=new Date(d0); d<=d1; d=addDays(d,1)){
+      const k=dayKey(d);
+      let inc=per;
+      if(a.dist==='s'){ const i=daysBetween(a.start,d);
+        inc = L<=0 ? a.weight : a.weight*(sCurve(i/L)-sCurve(Math.max(0,i-1)/L)); }
+      if(!daily[k]) daily[k]={w:0,active:0};
+      daily[k].w+=inc; daily[k].active++; total+=inc;
+    }
+  });
+  return {daily,total};
+}
+/* Turn a daily map into a cumulative series normalised by `normTotal`. */
+function seriesFrom(daily,normTotal){
+  const keys=Object.keys(daily).sort();
+  let cum=0; const series=[]; let maxConcurrent=0;
+  keys.forEach(k=>{
+    const o=daily[k]; cum+=o.w;
+    maxConcurrent=Math.max(maxConcurrent,o.active);
+    const [y,m,dd]=k.split('-').map(Number);
+    series.push({ date:new Date(y,m-1,dd), dailyW:o.w, cumW:cum, active:o.active,
+      dailyPct: normTotal? o.w/normTotal*100 : 0,
+      cumPct:   normTotal? cum/normTotal*100 : 0 });
+  });
+  return {series,maxConcurrent};
+}
+function overallSeries(acts){ const {daily,total}=dailyMap(acts,null,null); const r=seriesFrom(daily,total); return {...r,total}; }
+/* The effective reporting column for an as-of date = the latest reporting date on/before it. */
+function effReportDate(asof){
+  if(!REPORT_DATES.length || !asof) return null;
+  let eff=null;
+  for(const d of REPORT_DATES){ if(d<=asof) eff=d; else break; }
+  return eff;
+}
+/* Planned % TO DATE from the task baseline */
+function plannedToDate(acts,asof){
+  if(!asof) return 0;
+  return plannedPctAt(overallSeries(acts).series, asof);
+}
+/* Actual % TO DATE — weighted cumulative value from the effective reporting column */
+function actualToDate(acts,asof){
+  const eff=effReportDate(asof);
+  if(!eff) return {pct:0, eff:null};
+  const t=eff.getTime(); let w=0, num=0;
+  acts.forEach(a=>{ w+=a.weight; const v=(a.weekly && a.weekly[t]!=null)?a.weekly[t]:0; num+=a.weight*v; });
+  return {pct: w? num/w*100:0, eff};
+}
+/* Scope Plan/Actual/Variance to date */
+function scopeProgress(acts,asof){
+  const use = asof || DATA_DATE;
+  if(!acts.length) return null;
+  const cv=curveProgress(acts,use);                 // S-Curve - Site 1 figures when the projects have them
+  const plan=cv?cv.plan:plannedToDate(acts,use);
+  const ad=actualToDate(acts,use), actual=cv?cv.actual:ad.pct;
+  return {plan, actual, variance:actual-plan, eff:ad.eff, weight:acts.reduce((s,a)=>s+a.weight,0)};
+}
+/* ---- Planned / Actual % and S-curve from each workbook's S-curve sheet ----
+   Per project: the sheet's weekly row on or before the date (actual: the latest filled row).
+   A project without the sheet falls back to its tasks. Several projects are combined
+   weighted by each project's total task weight. */
+function curveRowAt(c,t){ let r=null; for(const p of c.pts){ if(+p.d<=+t) r=p; else break; } return r; }
+function curvePlanAt(c,t){ const r=curveRowAt(c,t); return r?r.plan:0; }
+function curveActRow(c,t){ let r=null; for(const p of c.pts){ if(+p.d>+t) break; if(p.act!=null) r=p; } return r; }
+function curveActAt(c,t){ const r=curveActRow(c,t); return r?r.act:0; }
+function curveScope(acts){
+  if(SRC!=='jda3' || CURRENT_WBS!=='ALL' || !acts || !acts.length) return null;
+  const by={}; acts.forEach(a=>{ (by[a.region]=by[a.region]||[]).push(a); });
+  const parts=Object.entries(by).map(([p,list])=>({p, list, w:list.reduce((s,a)=>s+a.weight,0), c:PROJ_CURVES[p]||null}));
+  return parts.some(x=>x.c) ? parts : null;
+}
+function curveSrc(parts){ const s=[...new Set(parts.filter(x=>x.c).map(x=>x.c.sheet.trim()))]; return s.length===1?s[0]:''; }
+function curveProgress(acts,asof){
+  const parts=asof ? curveScope(acts) : null; if(!parts) return null;
+  let W=0, pl=0, ac=0;
+  parts.forEach(x=>{ W+=x.w;
+    pl+=x.w*(x.c ? curvePlanAt(x.c,asof) : plannedToDate(x.list,asof));
+    ac+=x.w*(x.c ? curveActAt(x.c,asof) : actualToDate(x.list,asof).pct); });
+  if(!W) return null;
+  return {plan:pl/W, actual:ac/W, all:parts.every(x=>x.c), src:curveSrc(parts),
+          rows:parts.filter(x=>x.c).map(x=>({p:x.p, row:curveActRow(x.c,asof)}))};
+}
+/* Planned + Actual cumulative series for the S-curve chart. Several projects → one point a
+   week, lined up on the data date so the last Actual point equals the KPI figures. */
+function curveSeries(acts,asof){
+  const parts=curveScope(acts); if(!parts) return null;
+  const W=parts.reduce((s,x)=>s+x.w,0); if(!W) return null;
+  const tasks=parts.filter(x=>!x.c), tSer=new Map(tasks.map(x=>[x.p, overallSeries(x.list).series]));
+  const pd=new Set(), ad=new Set();
+  if(parts.length===1){
+    parts[0].c.pts.forEach(p=>{ pd.add(+p.d); if(p.act!=null) ad.add(+p.d); });
+  } else {
+    let lo=Infinity, hi=-Infinity;
+    parts.forEach(x=>{ const ds = x.c ? x.c.pts.map(p=>+p.d) : x.list.flatMap(a=>[+a.start,+a.finish]);
+      ds.forEach(t=>{ if(t<lo) lo=t; if(t>hi) hi=t; }); });
+    let d=new Date(asof && +asof>=lo && +asof<=hi ? +asof : hi);
+    while(+d>lo) d=addDays(d,-7);
+    pd.add(lo); ad.add(lo);
+    for(; +d<=hi; d=addDays(d,7)) if(+d>=lo){ pd.add(+d); ad.add(+d); }
+    pd.add(hi); if(asof) ad.add(+asof);
+  }
+  const at=(t,actual)=>parts.reduce((s,x)=>s+x.w*(x.c ? (actual?curveActAt(x.c,t):curvePlanAt(x.c,t))
+      : (actual?actualToDate(x.list,t).pct:plannedPctAt(tSer.get(x.p),t))),0)/W;
+  const build=(set,actual)=>{ let prev=0;
+    return [...set].sort((a,b)=>a-b).map(ms=>{ const v=at(new Date(ms),actual);
+      const pt={date:new Date(ms), dailyW:0, cumW:v, active:0, dailyPct:v-prev, cumPct:v}; prev=v; return pt; }); };
+  return {plan:build(pd,false), act:asof?build(new Set([...ad].filter(ms=>ms<=+asof)),true):[], all:!tasks.length, src:curveSrc(parts)};
+}
+/* Actual cumulative S-curve straight from the weekly reporting snapshots (task-based fallback) */
+function actualSeries(acts,normTotal,asof){
+  const eff=effReportDate(asof);
+  const series=[];
+  if(!eff||!normTotal) return series;
+  for(const d of REPORT_DATES){
+    if(d>eff) break;
+    const t=d.getTime(); let num=0;
+    acts.forEach(a=>{ const v=(a.weekly && a.weekly[t]!=null)?a.weekly[t]:0; num+=a.weight*v; });
+    series.push({date:new Date(d), dailyW:0, cumW:num, active:0,
+      dailyPct:0, cumPct: num/normTotal*100});
+  }
+  return series;
+}
+/* Cumulative planned % of a series as of a given date */
+function plannedPctAt(series,date){
+  if(!series.length) return 0;
+  if(date < series[0].date) return 0;
+  if(date >= series[series.length-1].date) return series[series.length-1].cumPct;
+  let v=0; for(const p of series){ if(p.date<=date) v=p.cumPct; else break; }
+  return v;
+}
+function projShort(reg){
+  const code=String(reg).split(' · ')[0].trim();
+  const m=code.match(/^P(\d.*)$/i);
+  return m ? 'Project '+m[1].toUpperCase() : /^cdf$/i.test(code) ? 'Project CDF' : code;
+}
+/* project names shown on this page, by project number (the saved data keeps its own labels, e.g. 'P2a · SAP Master Data') */
+const PROJ_TITLE={'2A':'SAP PM Data Revitalisation', '2B':'AI Driven Vision Analytics', '3A':'AI Driven Asset Integrity',
+  '4A':'AI Driven Maintenance and Reliability', '6A':'AI Driven Production and Planning', '7':'Work Process Efficiency Improvement'};
+function projTitle(reg){
+  const t=PROJ_TITLE[projShort(reg).replace(/^Project /,'')];
+  return t || (String(reg).includes(' · ') ? String(reg).split(' · ').slice(1).join(' · ') : '');
+}
+
+/* ==========================================================================
+   LOAD — rebuild the data from the saved report (the parts this page uses)
+   ========================================================================== */
+function hydrate(snap){
+  SRC = snap.src || 'p6';
+  PROJ_ASOF = Object.fromEntries(Object.entries(snap.projAsOf||{}).map(([p,t])=>[p,new Date(t)]));
+  PROJ_DELAYS = Object.fromEntries(Object.entries(snap.projDelays||{}).map(([p,l])=>[p, l==null?null:
+    l.map(x=>({rank:x.rank, factor:x.factor||'', plan:x.plan||'', date:x.date?new Date(x.date):null}))]));
+  KEY_HL = snap.keyHl ? {hi:snap.keyHl.hi||[], concern:snap.keyHl.concern||[],
+    asOf:snap.keyHl.asOf?new Date(snap.keyHl.asOf):null, file:snap.keyHl.file||''} : null;
+  PROJ_KEYHL = {...(snap.projKeyHl||{})};
+  PROJ_CURVES = Object.fromEntries(Object.entries(snap.projCurves||{}).map(([p,c])=>[p,
+    {sheet:c.sheet||'S-Curve - Site 1', asOf:c.asOf?new Date(c.asOf):null,
+     pts:(c.pts||[]).map(([d,plan,act])=>({d:new Date(d), plan, act:act==null?null:act}))}]));
+  ALL_ACTIVITIES = (snap.activities||[]).map(a=>({
+    id:a.id, name:a.name, region:a.region, wbs:a.wbs,
+    start:new Date(a.start), finish:new Date(a.finish), weight:a.weight, dist:a.dist||'', weekly:a.weekly||null }));
+  REPORT_DATES  = (snap.reportDates||[]).map(ms=>new Date(ms)).sort((x,y)=>x-y);
+  HAS_ACTUAL    = !!snap.hasActual;
+  PROGRESS_DATE = snap.progressDate?new Date(snap.progressDate):null;
+  PROJECT_MIN   = new Date(snap.projectMin);
+  PROJECT_MAX   = new Date(snap.projectMax);
+}
+
+/* ==========================================================================
+   RENDER
+   ========================================================================== */
+/* CDF reports OVERALL progress (its "S-Curve - Overall CDF" sheet) while the other projects report their
+   Site 1 / project S-curve, so CDF is kept out of the programme figures and the S-curve and shown on its own.
+   Each group is measured at its own data date: the latest "Today's Date" among its projects. */
+const isCDF=reg=>/^cdf$/i.test(String(reg).split(' · ')[0].trim());
+let PROG_ACTS=[], PROG_DATE=null;      // the projects + date behind the programme snapshot and its S-curve
+let CDF_ACTS=[], CDF_DATE=null;        // CDF on its own: its snapshot and its S-curve
+let VIEW='prog';                       // page view picked in the sidebar: 'prog' (All Projects) or 'cdf' (CDF's S-curve + Key Highlights)
+const cdfView=()=>CDF_ACTS.length>0 && (VIEW==='cdf' || !PROG_ACTS.length);
+function groupDate(acts){
+  const ds=[...new Set(acts.map(a=>a.region))].map(p=>PROJ_ASOF[p]).filter(Boolean).map(Number);
+  return stripTime(ds.length ? new Date(Math.max(...ds)) : (PROGRESS_DATE || PROJECT_MIN));
+}
+/* overall planned / actual % of a set of projects at a date — as the full report's snapshot */
+function scopeFigures(acts,asof){
+  let plan=plannedToDate(acts,asof), actual=HAS_ACTUAL?actualToDate(acts,asof).pct:null;
+  const cv=curveProgress(acts,asof);
+  if(cv){ plan=cv.plan; if(HAS_ACTUAL) actual=cv.actual; }
+  return {plan, actual};
+}
+/* one row per project — as the full report's Workstream progress */
+function projStats(acts,asof){
+  const by={}; acts.forEach(a=>{ (by[a.region]=by[a.region]||[]).push(a); });
+  return Object.entries(by).map(([reg,list])=>{
+    const pg=scopeProgress(list,asof), p=pg?pg.plan:0, a=HAS_ACTUAL&&pg?pg.actual:null;
+    return {reg, asof, plan:p, actual:a, variance:a==null?null:a-p};
+  }).sort((a,b)=>byOrder(a.reg,b.reg));
+}
+const projNames=list=>{ const s=[...list].sort(byOrder).map(projShort);
+  return s.length>1 ? 'Projects '+s.map(x=>x.replace(/^Project /,'')).join(', ') : (s[0]||''); };
+
+function renderAll(){
+  const prog=ALL_ACTIVITIES.filter(a=>!isCDF(a.region)), cdf=ALL_ACTIVITIES.filter(a=>isCDF(a.region));
+  const pDate=prog.length?groupDate(prog):null, cDate=cdf.length?groupDate(cdf):null;
+  PROG_ACTS=prog; PROG_DATE=pDate; CDF_ACTS=cdf; CDF_DATE=cDate; DATA_DATE=pDate||cDate;
+  const progStats=prog.length?projStats(prog,pDate):[], cdfStats=cdf.length?projStats(cdf,cDate):[];
+  const dates=(pDate?'as of '+fmtD(pDate):'')+(cDate&&(!pDate||+cDate!==+pDate)?(pDate?' · CDF ':'CDF as of ')+fmtD(cDate):'');
+
+  // sidebar: the View choice (only when there is a CDF and a programme) + the Actual toggle
+  $('curvePickT').hidden=$('curvePick').hidden=$('cvPick').hidden=!(prog.length && cdf.length);
+  $('pjAsOf').textContent=dates;
+  renderSnapshot(prog.length?{asof:pDate, ...scopeFigures(prog,pDate), regs:progStats.map(r=>r.reg)}:null,
+                 cdf.length?{asof:cDate, ...scopeFigures(cdf,cDate)}:null);
+  renderProjects(progStats,cdfStats);
+  // bars grow from 0
+  requestAnimationFrame(()=>requestAnimationFrame(()=>
+    document.querySelectorAll('#pjRows .pj-fill[data-w], #snapBox .snap-bar-fill[data-w]').forEach(f=>{ f.style.width=f.dataset.w+'%'; })));
+  renderView();
+}
+/* the sections that follow the View (All Projects / CDF) */
+function renderView(){
+  // sidebar: project start / finish of the view — All Projects: every project except CDF; CDF: CDF's own tasks
+  const acts=cdfView()?CDF_ACTS:PROG_ACTS;
+  $('sideProj').hidden=!acts.length;
+  if(acts.length){
+    $('spStart').textContent=fmtD(new Date(acts.reduce((m,a)=>Math.min(m,+a.start),Infinity)));
+    $('spFinish').textContent=fmtD(new Date(acts.reduce((m,a)=>Math.max(m,+a.finish),-Infinity)));
+  }
+  renderCurve();
+  renderKeyHighlights();
+  renderDelays();
+  // sidebar: only link to the sections on the page
+  document.querySelectorAll('#sideNav .nav-item').forEach(a=>{ const s=$(a.getAttribute('href').slice(1)); a.hidden=!s||s.hidden; });
+  syncNav();
+}
+
+/* ---- sidebar navigation: smooth scroll + highlight the section on screen ---- */
+function navTo(ev,id){
+  if(ev) ev.preventDefault();
+  const el=$(id); if(el) el.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function syncNav(){
+  const items=[...document.querySelectorAll('#sideNav .nav-item')].filter(a=>!a.hidden);
+  if(!items.length) return;
+  const atEnd=innerHeight+scrollY>=document.documentElement.scrollHeight-4;
+  let cur=items[0];
+  items.forEach(a=>{ const s=$(a.getAttribute('href').slice(1)); if(s && s.getBoundingClientRect().top<=140) cur=a; });
+  if(atEnd) cur=items[items.length-1];
+  items.forEach(a=>a.classList.toggle('active',a===cur));
+}
+window.addEventListener('scroll',syncNav,{passive:true});
+/* View (sidebar, or beside the S-curve title on narrow screens): All Projects, or CDF — CDF shows its own
+   S-curve and Key Highlights, and hides the Main Concern & Catch-up Plan table */
+function pickView(v){
+  VIEW=v;
+  document.querySelectorAll('[data-curve]').forEach(b=>{ const on=b.dataset.curve===v; b.classList.toggle('active',on); b.setAttribute('aria-pressed',String(on)); });
+  if(ALL_ACTIVITIES.length) renderView();
+}
+
+/* ---- programme snapshot (the full report's snapshot box): all projects except CDF. CDF is not in it
+        (it shows in its project row, and in the CDF view); only without other projects does CDF fill the box. ---- */
+function renderSnapshot(main,cdf){
+  const f1=v=>v==null?'—':v.toFixed(1)+'%';
+  const fillW=(a,p)=>a==null?0:(p>0?Math.min(a/p,1)*100:100);   // the bar is the plan; the fill is actual ÷ plan
+  const varTxt=(a,p)=>{ if(a==null) return '—'; const v=Math.round((a-p)*10)/10; return (v>0?'+':'')+v.toFixed(1); };
+  const block=(d,label,note)=>{ const a=d.actual, p=d.plan;
+    return `<div class="snap-body">
+      <div class="snap-top"><span class="snap-label">${label}</span></div>
+      <div class="snap-actual">${f1(a)}</div>
+      <div class="snap-cap">Actual</div>
+      <div class="snap-rule"></div>
+      <div class="snap-planned"><div class="snap-cap">Planned</div><div class="snap-planned-num">${f1(p)}</div></div>
+      <div class="snap-bar"><span class="snap-bar-end">${f1(p)}</span><div class="snap-bar-fill" data-w="${fillW(a,p)}">${a==null?'':f1(a)}</div></div>
+      <div class="snap-cap">Actual / Plan</div>
+      <div class="snap-variance"><span class="snap-variance-num${a!=null&&a>=p?' ahead':''}">${varTxt(a,p)}</span>
+        <span class="snap-variance-lbl">Variance to plan<br>(percentage points)</span></div>
+      <div class="snap-note">${note}</div>
+    </div>`; };
+  $('snapBox').innerHTML = main
+    ? block(main,'Overall FOR3NSIQ progress',
+        `As of <b>${fmtD(main.asof)}</b> · ${esc(projNames(main.regs))}${cdf?' (excl. CDF)':''}, weighted by task weight`)
+    : cdf ? block(cdf,'CDF overall progress',`As of <b>${fmtD(cdf.asof)}</b> · Project CDF`) : '';
+}
+
+/* ---- progress by project: actual bar, planned marker, variance — CDF last ---- */
+function renderProjects(progStats,cdfStats){
+  const stats=[...progStats,...cdfStats];
+  $('sProjects').hidden=!stats.length;
+  const r1=v=>Math.round(v*10)/10+'%';                 // 69% · 65.1% — as the full report
+  const sub=projTitle;
+  // JDA3 projects with no workbook in the saved report yet: greyed rows
+  const missing = SRC==='jda3' ? REGION_ORDER.filter(p=>!stats.some(r=>r.reg===p)).map(p=>({reg:p, missing:true})) : [];
+  const main=[...progStats, ...missing.filter(r=>!isCDF(r.reg))].sort((a,b)=>byOrder(a.reg,b.reg));
+  const apart=[...cdfStats, ...missing.filter(r=>isCDF(r.reg))];
+  const row=r=>{
+    const nm=`<span class="pj-name">${esc(projShort(r.reg))}${sub(r.reg)?`<small>${esc(sub(r.reg))}</small>`:''}</span>`;
+    if(r.missing) return `<div class="pj-row missing">${nm}<div class="pj-track"></div>
+      <div class="pj-nums"><span class="a">—</span><span class="p">—</span><span class="d">no tracker uploaded yet</span></div></div>`;
+    const a=r.actual, p=r.plan, d=a==null?null:Math.round((a-p)*10)/10;
+    return `<div class="pj-row">${nm}
+      <div class="pj-track"><div class="pj-fill" data-w="${Math.max(0,Math.min(a||0,100))}"></div><span class="pj-mark" style="left:${Math.max(0,Math.min(p,100))}%"></span></div>
+      <div class="pj-nums"><span class="a">${a==null?'—':r1(a)}</span><span class="p">${r1(p)}</span>`
+      +(d==null?'':`<span class="d ${d>=0?'ahead':'behind'}">Δ ${d>0?'+':''}${d.toFixed(1)} pp</span>`)
+      +`</div></div>`;
+  };
+  $('pjRows').innerHTML=[...main,...apart].map(row).join('');
+}
+
+/* ---- S-curve: all projects except CDF combined (the full report's All Projects chart, without CDF),
+        or CDF on its own (its "S-Curve - Overall CDF" sheet) — as picked in the sidebar ---- */
+const MONO_TICKS={family:"'IBM Plex Mono',Consolas,monospace",size:11};
+function hasDateAdapter(){
+  try{ return !!(Chart && Chart._adapters && Chart._adapters._date &&
+        typeof Chart._adapters._date.prototype.format==='function'); }
+  catch(e){ return false; }
+}
+function renderCurve(){
+  const isC=cdfView();
+  const acts=isC?CDF_ACTS:PROG_ACTS, asof=isC?CDF_DATE:PROG_DATE;
+  if(curveChart){ curveChart.destroy(); curveChart=null; }
+  if(!acts.length){ $('sCurve').hidden=true; return; }
+  const scope=isC?'CDF':CDF_ACTS.length?'all projects except CDF':'all projects';
+  $('cvWhat').textContent=isC?'CDF overall progress':scope+' combined (each weighted by its task weight)';
+  $('cvAsOf').textContent=asof?'as of '+fmtD(asof):'';
+  $('curveChart').setAttribute('aria-label','Planned and actual cumulative progress, '+scope);
+  const sc=curveSeries(acts,asof);
+  let plan, act;
+  if(sc){ plan=sc.plan; act=HAS_ACTUAL?sc.act:[]; }
+  else { const o=overallSeries(acts); plan=o.series; act=HAS_ACTUAL?actualSeries(acts,o.total,asof):[]; }
+  $('sCurve').hidden=!plan.length || typeof Chart==='undefined';
+  if($('sCurve').hidden) return;
+  // one shared date axis; a line's missing dates are bridged (spanGaps)
+  const ms=[...new Set([...plan,...act].map(p=>+p.date))].sort((x,y)=>x-y), at=new Map(ms.map((t,i)=>[t,i]));
+  const col=s=>{ const arr=new Array(ms.length).fill(null); s.forEach(p=>{ arr[at.get(+p.date)]=+p.cumPct.toFixed(3); }); return arr; };
+  const P=col(plan), A=col(act), dates=ms.map(t=>new Date(t));
+  const ink=css('--muted'), line=css('--chart-grid'), cPlan=css('--chart-plan'), cAct=css('--teal-600');
+  let yMax=100; P.concat(A).forEach(v=>{ if(v!=null && v>yMax) yMax=v; }); if(yMax>100) yMax=Math.ceil(yMax/10)*10;
+  const span=(ms[ms.length-1]-ms[0])/864e5, unit=span>150?'month':span>45?'week':'day';
+  const ticks={color:ink,font:MONO_TICKS,maxRotation:0,autoSkip:true,maxTicksLimit:12};
+  const x=hasDateAdapter()
+    ? {type:'time',time:{unit,displayFormats:{month:'MMM yyyy',week:'d MMM',day:'d MMM'}},grid:{color:line},border:{display:false},ticks}
+    : {type:'category',grid:{color:line},border:{display:false},ticks};
+  // the planned curve is shaded underneath (teal gradient, fading towards 0%)
+  const shade=c=>{ const a=c.chart.chartArea; if(!a) return 'rgba(0,161,156,.12)';
+    const g=c.chart.ctx.createLinearGradient(0,a.top,0,a.bottom);
+    g.addColorStop(0,'rgba(0,161,156,.30)'); g.addColorStop(1,'rgba(0,161,156,.03)'); return g; };
+  const pts=c=>({pointBackgroundColor:c,pointBorderWidth:0,pointHoverRadius:5,pointHoverBackgroundColor:c,
+    pointHoverBorderColor:'#fff',pointHoverBorderWidth:2,spanGaps:true,tension:.35});
+  const datasets=[{label:'Planned',data:P,borderColor:cPlan,backgroundColor:shade,fill:'origin',borderWidth:2,borderDash:[4,3],pointRadius:0,...pts(cPlan)}];
+  const showA=SHOW_ACTUAL && A.some(v=>v!=null);
+  if(showA) datasets.push({label:'Actual',data:A,borderColor:cAct,backgroundColor:'transparent',fill:false,borderWidth:2.5,pointRadius:2.5,...pts(cAct)});
+  // Actual − Planned at an axis index (both lines must have a value there) — shown in the tooltip
+  const diffAt=i=>{ if(!showA||i==null||i<0) return null; const p=P[i], a=A[i]; return (p==null||a==null)?null:a-p; };
+  $('zoomBtn').hidden=$('zoomHint').hidden=!ZOOM_OK;
+  curveChart=new Chart($('curveChart'),{
+    type:'line',
+    data:{labels:x.type==='time'?dates:dates.map(fmtD),datasets},
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:600},
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{display:true,position:'top',align:'end',
+          labels:{usePointStyle:true,pointStyle:'circle',boxWidth:7,boxHeight:7,color:ink,font:{size:11.5,weight:'600'}}},
+        tooltip:{backgroundColor:'rgba(1,61,57,.95)',padding:12,titleColor:'#7fe0da',cornerRadius:10,
+          titleFont:{...MONO_TICKS,weight:'600'},bodyFont:{...MONO_TICKS,size:11.5},usePointStyle:true,
+          footerFont:{...MONO_TICKS,size:11.5,weight:'700'},footerMarginTop:8,
+          footerColor:c=>{ const p=c.tooltip&&c.tooltip.dataPoints&&c.tooltip.dataPoints[0]; const d=p?diffAt(p.dataIndex):null; return d!=null&&d<0?'#ffb3a7':'#7fe0da'; },
+          callbacks:{
+            title:it=>fmtD(dates[it[0].dataIndex]),
+            label:it=>' '+it.dataset.label+': '+(it.parsed.y==null?'—':it.parsed.y.toFixed(2)+'%'),
+            footer:it=>{ const d=it.length?diffAt(it[0].dataIndex):null;
+              return d==null?'':` Variance (Actual − Planned): ${d>0?'+':''}${d.toFixed(2)} pts`; }
+          }},
+        // scroll / pinch to zoom the dates, drag to pan (as in the full report)
+        ...(ZOOM_OK?{zoom:{pan:{enabled:true,mode:'x'},zoom:{wheel:{enabled:true},pinch:{enabled:true},drag:{enabled:false},mode:'x'}}}:{})
+      },
+      scales:{x,
+        y:{min:0,max:yMax,grid:{color:line},border:{display:false},ticks:{color:ink,font:MONO_TICKS,callback:v=>v+'%'}}}}
+  });
+}
+
+function resetZoom(){ try{ if(curveChart&&curveChart.resetZoom) curveChart.resetZoom(); }catch(e){} }
+
+/* ---- Key Highlights (as in the full report) ----
+   All Projects: Key Highlight = each project's KEY HIGHLIGHTS table in its workbook, grouped by project
+                 (when no workbook has one filled in: the Key Highlights file saved with the report);
+                 Main Concern and Catch-up Plan = the Key Highlights file, or — without one — each
+                 project's main (#1) concern factor and its catch-up plan.
+   CDF: CDF's KEY HIGHLIGHTS table (without one: the Key Highlights file's points that start with "CDF",
+        e.g. "CDF – PI, SAP … ingested"), and CDF's own concern factors + catch-up plans (its Top 5 table). */
+const CDF_POINT=/^\s*CDF\s*[-–—:]\s*/i;
+function renderKeyHighlights(){
+  const k=KEY_HL, isC=cdfView();
+  const point=t=>`<li>${esc(t)}</li>`;
+  const concernPoint=d=>`<li>${esc(d.factor||'—')}${d.plan?`<span class="kh-sub">Catch-up plan: ${esc(d.plan)}</span>`:''}</li>`;
+  const group=(p,items)=>{ const t=projTitle(p);   // numbered 1… per project
+    return `<li class="kh-group"><div class="kh-gtitle">${esc(projShort(p)+(t?' - '+t:''))}</div><ol class="kh-list">${items.join('')}</ol></li>`; };
+  let hi='', concern='', fromFile=false;
+  if(isC){
+    const reg=CDF_ACTS[0].region, own=PROJ_KEYHL[reg]||[];
+    hi=(own.length ? own : (k?k.hi:[]).filter(t=>CDF_POINT.test(t)).map(t=>t.replace(CDF_POINT,''))).map(point).join('');
+    concern=(PROJ_DELAYS[reg]||[]).map(concernPoint).join('');
+  } else {
+    const projs=[...new Set(PROG_ACTS.map(a=>a.region))].sort(byOrder);
+    const withHl=projs.filter(p=>(PROJ_KEYHL[p]||[]).length);
+    fromFile=!withHl.length && !!(k && k.hi.length);
+    hi = withHl.length ? withHl.map(p=>group(p,PROJ_KEYHL[p].map(point))).join('') : fromFile ? k.hi.map(point).join('') : '';
+    concern = k && k.concern.length ? k.concern.map(point).join('')
+      : projs.filter(p=>(PROJ_DELAYS[p]||[]).length).map(p=>group(p,[concernPoint(PROJ_DELAYS[p][0])])).join('');
+  }
+  const on=SRC==='jda3' && (isC || !!(hi||concern));
+  $('sKeyHl').hidden=!on;
+  if(!on) return;
+  const empty='<li class="kh-empty">Nothing entered.</li>';
+  $('khHiT').textContent=(isC?'CDF ':'')+'Key Highlight';
+  $('khConcernT').textContent=(isC?'CDF ':'')+'Main Concern and Catch-up Plan';
+  $('khHi').innerHTML=hi||empty;
+  $('khConcern').innerHTML=concern||empty;
+  $('khAsOf').textContent=isC?'CDF':(fromFile&&k.asOf?'as of '+fmtD(k.asOf):'All Projects');
+}
+
+/* ---- each project's main (#1) concern factor and its catch-up plan (Top 5 table in its workbook) ---- */
+function renderDelays(){
+  const projs=[...new Set(ALL_ACTIVITIES.map(a=>a.region))].sort(byOrder);
+  const on=SRC==='jda3' && !cdfView() && projs.some(p=>(PROJ_DELAYS[p]||[]).length);   // not in the CDF view
+  $('sDelays').hidden=!on;
+  if(!on) return;
+  $('dlBody').innerHTML=projs.map(p=>{
+    const top=(PROJ_DELAYS[p]||[])[0], sub=projTitle(p);
+    return `<tr><td>${esc(projShort(p))}${sub?`<small>${esc(sub)}</small>`:''}</td>`
+      +(top ? `<td data-k="Main concern factor">${esc(top.factor||'—')}</td><td data-k="Catch-up plan">${esc(top.plan||'—')}</td>`
+            : `<td colspan="2" class="muted">Not filled in yet.</td>`)+'</tr>'; }).join('');
+}
+
+/* ==========================================================================
+   THEME + PRINT
+   ========================================================================== */
+function toggleTheme(){
+  const dark=document.documentElement.getAttribute('data-theme')==='dark';
+  document.documentElement.setAttribute('data-theme', dark?'light':'dark');
+  $('themeBtn').textContent=dark?'🌙':'☀️';
+  if(ALL_ACTIVITIES.length) renderCurve();   // recolour the chart
+}
+// fit the chart to the printed page (and back)
+['beforeprint','afterprint'].forEach(ev=>window.addEventListener(ev,()=>{ if(curveChart) curveChart.resize(); }));
+
+/* ==========================================================================
+   SHARED DATABASE (Firebase Firestore, project jda3-9c0c5 — same record as the full report)
+   Reads progressReport/current: the report last saved with "Save to database" in the
+   full report. `data` is the saved report JSON, gzip + base64 (enc 'gzip+b64') or plain JSON.
+   This page writes only when an uploaded snapshot is saved (see SNAPSHOT UPLOAD below),
+   with the same record and one-step backup ("previous") as the full report.
+   ========================================================================== */
+const FIREBASE_CONFIG={
+  apiKey:"AIzaSyAs9Jg5RDaaU9yH_2e38EOd3nAvLIhz_HM",
+  authDomain:"jda3-9c0c5.firebaseapp.com",
+  projectId:"jda3-9c0c5",
+  storageBucket:"jda3-9c0c5.firebasestorage.app",
+  messagingSenderId:"842256934283",
+  appId:"1:842256934283:web:c2f5610ca5b37ed0d13b8e"
+};
+const FIREBASE_SDK='https://www.gstatic.com/firebasejs/10.13.0/';
+let _fs=null;                 // Firestore API + doc refs, loaded on first use
+async function fsApi(){
+  if(_fs) return _fs;
+  const [appMod,fsMod]=await Promise.all([import(FIREBASE_SDK+'firebase-app.js'),import(FIREBASE_SDK+'firebase-firestore.js')]);
+  const app=appMod.getApps().find(a=>a.name==='progress-summary')||appMod.initializeApp(FIREBASE_CONFIG,'progress-summary');
+  const db=fsMod.getFirestore(app);
+  _fs={...fsMod, db, cur:fsMod.doc(db,'progressReport','current'), prev:fsMod.doc(db,'progressReport','previous')};
+  return _fs;
+}
+async function gunzipB64(b64){
+  const u=Uint8Array.from(atob(b64),c=>c.charCodeAt(0));
+  return new Response(new Blob([u]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
+}
+async function gzipB64(str){
+  const buf=await new Response(new Blob([str]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
+  const u=new Uint8Array(buf); let bin='';
+  for(let i=0;i<u.length;i+=0x8000) bin+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));
+  return btoa(bin);
+}
+function dbErrText(e){
+  const code=e&&e.code||'';
+  if(code==='permission-denied') return 'the database refused access';
+  if(code==='unavailable'||/network|fetch|import/i.test(String(e&&e.message))) return 'the database could not be reached — check your internet connection and reload';
+  return (e&&e.message)||String(e);
+}
+async function loadSaved(){
+  setStatus('Loading…'); msg('Loading the latest saved report…','warn');
+  try{
+    const fs=await fsApi();
+    const snap=await fs.getDoc(fs.cur);
+    if(!snap.exists()){
+      SAVED=null;
+      if(PREVIEW){ showPreviewBar(); msg('clear'); return; }        // a snapshot was uploaded meanwhile: keep showing it
+      setStatus('No saved report','err');
+      msg('No report has been saved yet — upload a snapshot (⬆ Upload Snapshot), or upload the project workbooks in the full progress report and click “Save to database”.','warn');
+      return;
+    }
+    const d=snap.data();
+    SAVED={version:d.version||1, savedAtMs:d.savedAtMs};
+    if(PREVIEW){ showPreviewBar(); msg('clear'); return; }
+    hydrate(JSON.parse(d.enc==='gzip+b64' ? await gunzipB64(d.data) : d.data));
+    if(!ALL_ACTIVITIES.length){ setStatus('No data','err'); msg('The saved report has no projects in it.','warn'); return; }
+    renderAll();
+    setStatus('Saved report','ok'); msg('clear');
+  }catch(e){
+    console.error(e);
+    if(PREVIEW){ msg('clear'); return; }
+    setStatus('Database offline','err');
+    msg('Could not load the saved report: '+dbErrText(e)+'. You can still open a snapshot with “⬆ Upload Snapshot”.','err');
+  }
+}
+
+/* ==========================================================================
+   SNAPSHOT UPLOAD
+   A snapshot file from the full report ("🔗 Save / Share Snapshot") carries the whole
+   report — the same JSON the full report saves to the database — in its
+   <script id="snapshot-payload"> tag. Uploading one shows it here as a preview
+   (nobody else sees it); "Save to database" makes it the saved report for everyone,
+   keeping the version it replaces as progressReport/previous, as the full report does.
+   ========================================================================== */
+let PREVIEW=null;     // {snap, name, madeMs} while an uploaded snapshot is on screen and not saved
+// the payload tag, assembled from fragments so this page's own source never contains it
+const SNAP_RX=new RegExp('<scr'+'ipt id="snapshot'+'-payload">\\s*window\\.__SNAPSHOT__\\s*=\\s*([\\s\\S]*?);\\s*</'+'scr'+'ipt>','g');
+function snapshotFromText(text){
+  const t=text.trim();
+  if(t.startsWith('{')) return JSON.parse(t);                // the report JSON on its own
+  const all=[...text.matchAll(SNAP_RX)];
+  return all.length ? JSON.parse(all[all.length-1][1]) : null;
+}
+function pickSnapshot(ev){ const f=ev.target.files && ev.target.files[0]; ev.target.value=''; if(f) loadSnapshotFile(f); }
+async function loadSnapshotFile(file){
+  const how='choose the .html file saved with “🔗 Save / Share Snapshot” in the full progress report';
+  if(!/\.(html?|json)$/i.test(file.name)){ msg(`“${file.name}” is not a snapshot file — ${how}.`,'err'); return; }
+  if(file.size>25*1048576){ msg(`“${file.name}” is too large to be a snapshot — ${how}.`,'err'); return; }
+  let snap=null;
+  try{ snap=snapshotFromText(await file.text()); }catch(e){ console.error(e); }
+  if(!snap || !Array.isArray(snap.activities) || !snap.activities.length){
+    msg(`“${file.name}” has no report data in it — ${how}.`,'err'); return; }
+  const made=snap.savedAt ? Date.parse(snap.savedAt) : NaN;
+  hydrate(snap);
+  PREVIEW={snap, name:file.name, madeMs:isNaN(made)?null:made};
+  renderAll();
+  showPreviewBar(); setStatus('Snapshot preview'); msg('clear');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function showPreviewBar(){
+  const p=PREVIEW; $('pvBar').hidden=!p;
+  if(!p) return;
+  const n=new Set(p.snap.activities.map(a=>a.region)).size;
+  const older=p.madeMs && SAVED && p.madeMs<SAVED.savedAtMs;
+  $('pvTxt').textContent=`Showing ${p.name}${p.madeMs?` (snapshot made ${fmtDT(p.madeMs)})`:''} · ${n} project${n>1?'s':''}. `
+    +(SAVED ? `Everyone else still sees the saved report (version ${SAVED.version}, saved ${fmtDT(SAVED.savedAtMs)}).` : 'Everyone else still sees the saved report.')
+    +(older ? ' ⚠ This snapshot is older than the saved report.' : '');
+}
+function discardPreview(){ PREVIEW=null; location.reload(); }   // reopens what is saved in the database
+
+/* Make the uploaded snapshot the saved report (after a confirmation) */
+async function saveToDatabase(){
+  const p=PREVIEW; if(!p) return;
+  const btn=$('pvSave'); btn.disabled=true;
+  try{
+    const fs=await fsApi();
+    const old=await fs.getDoc(fs.cur), oldData=old.exists()?old.data():null;
+    const snap=p.snap, projects=[...new Set(snap.activities.map(a=>a.region))];
+    const dropped=oldData ? (oldData.projects||[]).filter(x=>!projects.includes(x)) : [];
+    const older=p.madeMs && oldData && p.madeMs<oldData.savedAtMs;
+    const L=a=>a.map(projShort).join(', ');
+    const ok=confirm('Save this snapshot to the database?\n\n'
+      +`Snapshot: ${p.name}${p.madeMs?` (made ${fmtDT(p.madeMs)})`:''}\n`
+      +`Projects: ${L(projects)} · ${snap.activities.length} tasks\n`
+      +(oldData ? `\nIt replaces the saved report (version ${oldData.version||1}, saved ${fmtDT(oldData.savedAtMs)}) for everyone — this summary and the full progress report.\n`
+                : '\nNothing is saved yet — this becomes the saved report for everyone.\n')
+      +(older ? '\n⚠ This snapshot was made BEFORE the saved report was last saved — saving it brings back older data.\n' : '')
+      +(dropped.length ? `\n⚠ ${L(dropped)} ${dropped.length>1?'are':'is'} in the saved report but not in this snapshot — ${dropped.length>1?'they':'it'} will be removed.\n` : '')
+      +'\nThe version being replaced is kept as a backup ("previous").');
+    if(!ok) return;
+    const json=JSON.stringify({...snap, filters:{}});          // viewers open the default view, as with the full report's save
+    let enc='json', data=json;
+    if(typeof CompressionStream!=='undefined'){ data=await gzipB64(json); enc='gzip+b64'; }
+    if(data.length>1000000) throw new Error(`the report is too large for one database record (${Math.round(data.length/1024)} KB)`);
+    const files=[...new Set(Object.values(snap.projFiles||{}))];
+    const rec={enc, data, savedAtMs:Date.now(), savedAt:fs.serverTimestamp(), files:(files.length?files:[p.name]).slice(0,50),
+      projectFiles:{...(snap.projFiles||{})}, updated:projects, removed:dropped,
+      tasks:snap.activities.length, projects, dataDate:snap.progressDate?dayKey(new Date(snap.progressDate)):'',
+      version:(oldData&&oldData.version||0)+1, source:'snapshot', snapshotFile:p.name};
+    const batch=fs.writeBatch(fs.db);
+    if(oldData) batch.set(fs.prev,oldData);                    // one-step backup of the version being replaced
+    batch.set(fs.cur,rec);
+    await batch.commit();
+    SAVED={version:rec.version, savedAtMs:rec.savedAtMs}; PREVIEW=null; showPreviewBar();
+    setStatus('Saved report','ok');
+    msg(`✔ Saved to the database as version ${rec.version}. Everyone who opens this summary or the full progress report now sees this snapshot.`,'ok');
+  }catch(e){ console.error(e); msg('Could not save to the database: '+dbErrText(e)+'. Nothing was changed.','err'); }
+  finally{ btn.disabled=false; }
+}
+
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',loadSaved); else loadSaved();
+</script>
+</body></html>
