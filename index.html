@@ -232,7 +232,14 @@ aside.sidebar::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14);border-r
 .snap-planned{text-align:right}
 .snap-planned .snap-cap{margin:0 0 1px}
 .snap-planned-num{font-size:24px;font-weight:800;line-height:1;color:#fff;letter-spacing:-.5px}
-.snap-bar{position:relative;height:15px;border-radius:8px;background:rgba(255,255,255,.18);margin-top:12px;overflow:hidden}
+.snap-bar{position:relative;height:15px;border-radius:8px;background:rgba(255,255,255,.18);margin-top:12px}
+/* the bar runs 0–100%: the fill is the actual %, the white marker the planned % */
+.snap-bar-plan{position:absolute;top:-4px;bottom:-4px;width:3px;margin-left:-1.5px;border-radius:2px;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.3)}
+.snap-scale{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-top:6px;font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#9fd6d1}
+.snap-keys{display:inline-flex;align-items:center;gap:10px}
+.snap-key{display:inline-flex;align-items:center;gap:4px}
+.snap-key-a{display:inline-block;width:12px;height:7px;border-radius:4px;background:var(--teal-400)}
+.snap-key-p{display:inline-block;width:3px;height:11px;border-radius:2px;background:#fff}
 .snap-bar-end{position:absolute;right:8px;top:0;bottom:0;display:flex;align-items:center;font-size:9.5px;font-weight:800;color:#fff}
 .snap-bar-fill{position:absolute;top:0;bottom:0;left:0;width:0;border-radius:8px;background:var(--teal-400);display:flex;align-items:center;
   justify-content:flex-end;padding-right:8px;font-size:9.5px;font-weight:800;color:var(--teal-900);white-space:nowrap;
@@ -898,7 +905,8 @@ function renderSnapshotNow(){
 }
 function renderSnapshot(main,cdf,one){
   const f1=v=>v==null?'—':v.toFixed(1)+'%';
-  const fillW=(a,p)=>a==null?0:(p>0?Math.min(a/p,1)*100:100);   // the bar is the plan; the fill is actual ÷ plan
+  const pct=v=>Math.max(0,Math.min(v||0,100));
+  const fillW=a=>a==null?0:pct(a);   // the bar runs 0–100%: the fill is the actual %, the white marker the planned %
   const varTxt=(a,p)=>{ if(a==null) return '—'; const v=Math.round((a-p)*10)/10; return (v>0?'+':'')+v.toFixed(1); };
   // a clicked shared project (3A / 4A): its T.AI and IBM figures under the combined total — as in the full report
   const splitHtml=s=>{ const pc=v=>Math.round(v*100)+'%';
@@ -914,8 +922,9 @@ function renderSnapshot(main,cdf,one){
       <div class="snap-cap">Actual</div>
       <div class="snap-rule"></div>
       <div class="snap-planned"><div class="snap-cap">Planned</div><div class="snap-planned-num">${f1(p)}</div></div>
-      <div class="snap-bar"><div class="snap-bar-fill" data-w="${fillW(a,p)}"></div></div>
-      <div class="snap-cap">Actual / Plan</div>
+      <div class="snap-bar" role="img" aria-label="Actual ${f1(a)} and planned ${f1(p)}, on a scale of 0 to 100%"><div class="snap-bar-fill" data-w="${fillW(a)}"></div>`
+        +(p==null?'':`<span class="snap-bar-plan" style="left:${pct(p)}%"></span>`)+`</div>
+      <div class="snap-scale"><span>0%</span><span class="snap-keys"><span class="snap-key"><i class="snap-key-a"></i>Actual</span><span class="snap-key"><i class="snap-key-p"></i>Planned</span></span><span>100%</span></div>
       <div class="snap-variance"><span class="snap-variance-num${a!=null&&a>=p?' ahead':''}">${varTxt(a,p)}</span>
         <span class="snap-variance-lbl">Variance to plan<br>(percentage points)</span></div>
       ${extra}
